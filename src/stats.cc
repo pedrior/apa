@@ -16,7 +16,14 @@ std::ostream& operator<<(std::ostream& os, const stats& stats) {
     os << client << " ";
   }
 
-  os << "\n\n" << stats.routes.size() << "\n";
+  int used_routes{0};
+  for (const auto& route : stats.routes) {
+    if (!route.empty()) {
+      used_routes++;
+    }
+  }
+
+  os << "\n\n" << used_routes << "\n";
 
   for (const auto& route : stats.routes) {
     for (const auto& client : route) {
