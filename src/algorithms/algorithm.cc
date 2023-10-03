@@ -66,7 +66,9 @@ void algorithm::outsource_client(int client) {
 }
 
 void algorithm::return_to_depot(int vehicle) {
-  _total_routing_cost += _context.distance(_vehicle_routes[vehicle].back(), 0);
+  if (!_vehicle_routes[vehicle].empty()) {
+    _total_routing_cost += _context.distance(_vehicle_routes[vehicle].back(), 0);
+  }
 }
 
 }  // namespace apa

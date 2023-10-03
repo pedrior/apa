@@ -38,21 +38,27 @@ apa::stats greedy::run() {
   };
 }
 
+constexpr float kDistanceWeight{0.1};
+constexpr float kDemandWeight{0.5};
+constexpr float kOutsourcingWeight{0.4};
+
 int greedy::find_highest_priority_client(int origin, int vehicle) {
   int client{0};
-  int client_priority{std::numeric_limits<int>::min()};
+  float min_cost{std::numeric_limits<float>::max()};
 
   for (const auto &target : pending_clients()) {
-    const int target_demand{context().demand(target)};
-    const int target_distance{context().distance(origin, target)};
+    const int demand{context().demand(target)};
+    const int distance{context().distance(origin, target)};
+    const int outsourcing_cost{context().outsourcing_cost(target)};
 
-    // TODO: this is a very naive approach, we should consider more than this. Also, outsource cost
-    // is not being considered.
-    const int priority{target_demand / target_distance};
+    // cost = α * distance + β * demand + γ * outsourcing_cost
+    float cost{static_cast<float>((float)distance * kDistanceWeight /
+                                  (float)demand * kDemandWeight +
+                                  (float)outsourcing_cost * kOutsourcingWeight)};
 
-    if (priority > client_priority && target_demand <= greedy::vehicle_capacity(vehicle)) {
+    if (cost < min_cost && demand <= greedy::vehicle_capacity(vehicle)) {
       client = target;
-      client_priority = target_distance;
+      min_cost = cost;
     }
   }
 
