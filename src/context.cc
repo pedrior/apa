@@ -7,7 +7,7 @@
 namespace apa {
 
 std::ostream& operator<<(std::ostream& os, const context& context) {
-  os << context.clients << "\n"
+  os << context.clients + 1 << "\n"
      << context.vehicles << "\n"
      << context.vehicle_capacity << "\n"
      << context.non_outsource_clients << "\n"
@@ -44,17 +44,13 @@ context context_parser::parse(const std::string& filename) {
   int n, k, q, l, r;
   file >> n >> k >> q >> l >> r;
 
-  std::vector<int> d(n);
-  d[0] = 0;
-
-  for (int i = 1; i < n; ++i) {
+  std::vector<int> d(n - 1);
+  for (int i = 0; i < n - 1; ++i) {
     file >> d[i];
   }
 
-  std::vector<int> p(n);
-  d[0] = 0;
-
-  for (int i = 1; i < n; ++i) {
+  std::vector<int> p(n - 1);
+  for (int i = 0; i < n - 1; ++i) {
     file >> p[i];
   }
 
@@ -66,14 +62,14 @@ context context_parser::parse(const std::string& filename) {
   }
 
   return {
-      n,  // clients
-      k,  // vehicles
-      q,  // vehicle_capacity
-      l,  // non_outsource_clients
-      r,  // vehicle_cost
-      d,  // demands
-      p,  // outsourcing_costs
-      c   // distances
+      n - 1,  // clients
+      k,      // vehicles
+      q,      // vehicle_capacity
+      l,      // non_outsource_clients
+      r,      // vehicle_cost
+      d,      // demands
+      p,      // outsourcing_costs
+      c       // distances
   };
 }
 
