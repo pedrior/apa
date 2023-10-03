@@ -13,6 +13,8 @@ int main(int argc, char** argv) {
   std::vector<std::unique_ptr<apa::algorithm>> algorithms{};
   apa::context context = apa::context_parser::parse(argv[1]);
 
+  std::cout << context << std::endl;
+
   algorithms.push_back(std::make_unique<apa::greedy>(context));
 
   for (const auto& algorithm : algorithms) {

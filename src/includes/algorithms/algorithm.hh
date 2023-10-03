@@ -15,7 +15,7 @@ class algorithm {
  public:
   explicit algorithm(std::string name, apa::context context)
       : _name{std::move(name)}, _context{std::move(context)} {
-    for (int client = 6; client >= 1; client--) {
+    for (int client = _context.clients; client >= 1; client--) {
       _pending_clients.insert(client);
     }
 

@@ -18,9 +18,9 @@ struct context {
 
   [[nodiscard]] int distance(int origin, int target) { return distances[origin][target]; }
 
-  [[nodiscard]] int demand(int client) { return demands[client - 1]; }
+  [[nodiscard]] int demand(int client) { return demands[client]; }
 
-  [[nodiscard]] int outsourcing_cost(int client) { return outsourcing_costs[client - 1]; }
+  [[nodiscard]] int outsourcing_cost(int client) { return outsourcing_costs[client]; }
 
   friend std::ostream& operator<<(std::ostream& os, const context& context);
 };

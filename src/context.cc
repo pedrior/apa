@@ -45,18 +45,22 @@ context context_parser::parse(const std::string& filename) {
   file >> n >> k >> q >> l >> r;
 
   std::vector<int> d(n);
-  for (int i = 0; i < n; ++i) {
+  d[0] = 0;
+
+  for (int i = 1; i < n; ++i) {
     file >> d[i];
   }
 
   std::vector<int> p(n);
-  for (int i = 0; i < n; ++i) {
+  d[0] = 0;
+
+  for (int i = 1; i < n; ++i) {
     file >> p[i];
   }
 
-  std::vector<std::vector<int>> c(n + 1, std::vector<int>(n + 1));
-  for (int i = 0; i < n + 1; ++i) {
-    for (int j = 0; j < n + 1; ++j) {
+  std::vector<std::vector<int>> c(n, std::vector<int>(n));
+  for (int i = 0; i < n; ++i) {
+    for (int j = 0; j < n; ++j) {
       file >> c[i][j];
     }
   }
