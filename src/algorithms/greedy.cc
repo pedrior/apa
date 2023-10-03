@@ -1,6 +1,5 @@
 #include "../includes/algorithms/greedy.hh"
 
-#include <iostream>
 #include <limits>
 
 namespace apa {
@@ -44,17 +43,13 @@ constexpr float kOutsourcingWeight{0.4};
 
 int greedy::find_highest_priority_client(int origin, int vehicle) {
   int client{0};
-  float min_cost{std::numeric_limits<float>::max()};
+  int min_cost{std::numeric_limits<int>::max()};
 
   for (const auto &target : pending_clients()) {
     const int demand{context().demand(target)};
     const int distance{context().distance(origin, target)};
-    const int outsourcing_cost{context().outsourcing_cost(target)};
 
-    // cost = α * distance + β * demand + γ * outsourcing_cost
-    float cost{static_cast<float>((float)distance * kDistanceWeight /
-                                  (float)demand * kDemandWeight +
-                                  (float)outsourcing_cost * kOutsourcingWeight)};
+    int cost{distance};
 
     if (cost < min_cost && demand <= greedy::vehicle_capacity(vehicle)) {
       client = target;
