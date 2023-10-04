@@ -37,10 +37,6 @@ apa::stats greedy::run() {
   };
 }
 
-constexpr float kDistanceWeight{0.1};
-constexpr float kDemandWeight{0.5};
-constexpr float kOutsourcingWeight{0.4};
-
 int greedy::find_highest_priority_client(int origin, int vehicle) {
   int client{0};
   int min_cost{std::numeric_limits<int>::max()};
