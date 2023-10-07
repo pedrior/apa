@@ -8,9 +8,6 @@ todos do mesmo modelo e com capacidade ```Q```. Todos os veículos devem iniciar
 ## Requisitos
 
 - [x] Implementação de ao menos uma heurística de construção (algoritmo guloso) para a geração de uma solução viável.
-      
-  > ⚠️ Procurar melhorar o critério guloso utilizado.
-  #
 
 - [ ] Implementação de estruturas de vizinhança.
   - [ ] Com movimentos envolvendo uma única rota.
