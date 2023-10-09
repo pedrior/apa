@@ -1,6 +1,2 @@
 BasedOnStyle: Google
-ColumnLimit: 100
-BinPackArguments: false
-BinPackParameters: false
-ExperimentalAutoDetectBinPacking: false
-AllowAllParametersOfDeclarationOnNextLine: false
+ColumnLimit: 120

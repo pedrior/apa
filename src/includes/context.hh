@@ -16,11 +16,11 @@ struct context {
   std::vector<int> outsourcing_costs;       // p
   std::vector<std::vector<int>> distances;  // c
 
-  [[nodiscard]] int distance(int origin, int target) { return distances[origin][target]; }
+  [[nodiscard]] int distance(int origin, int target) const { return distances[origin][target]; }
 
-  [[nodiscard]] int demand(int client) { return demands[client - 1]; }
+  [[nodiscard]] int demand(int client) const { return demands[client - 1]; }
 
-  [[nodiscard]] int outsourcing_cost(int client) { return outsourcing_costs[client - 1]; }
+  [[nodiscard]] int outsourcing_cost(int client) const { return outsourcing_costs[client - 1]; }
 
   friend std::ostream& operator<<(std::ostream& os, const context& context);
 };
