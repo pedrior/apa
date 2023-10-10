@@ -18,6 +18,8 @@ using outsourced_clients = std::vector<client>;
 using vehicle_capacities = std::vector<capacity>;
 using routes = std::vector<std::vector<client>>;
 
+static bool s_debug{};
+
 /**
  * @brief Algoritmo guloso para o problema de roteamento de veículos.
  * @param context Instância do problema.
@@ -57,14 +59,13 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  bool debug{};
   if (argc == 3 && std::string(argv[2]) == "-d") {
-    debug = true;
+    s_debug = true;
   }
 
   const auto& context = apa::context_parser::parse(argv[1]);
 
-  if (debug) {
+  if (s_debug) {
     std ::cout << context << std::endl;
   }
 
@@ -107,6 +108,11 @@ apa::stats greedy(const apa::context& context) {
 
     // Cliente encontrado, atende-o.
     if (target_client != -1) {
+      if (s_debug) {
+        std::cout << "Vehicle " << vehicle << " will serve client " << target_client << " with cost "
+                  << context.distance(origin_client, target_client) << std::endl;
+      }
+
       vehicle_routes[vehicle].push_back(target_client);  // Adiciona o cliente à rota do veículo atual.
 
       total_routing_cost += context.distance(origin_client, target_client);  // Atualiza o custo de roteamento.
@@ -133,6 +139,11 @@ apa::stats greedy(const apa::context& context) {
     // O veículo atual não foi utilizado (não possui rota), então não é necessário retornar ao depósito.
     if (vehicle_routes[vehicle].empty()) {
       continue;
+    }
+
+    if (s_debug) {
+      std::cout << "Vehicle " << vehicle << " will return to depot with cost "
+                << context.distance(vehicle_routes[vehicle].back(), 0) << std::endl;
     }
 
     // Atualiza o custo de roteamento com o retorno ao depósito.
