@@ -10,7 +10,7 @@ todos do mesmo modelo e com capacidade ```Q```. Todos os veículos devem iniciar
 - [x] Implementação de ao menos uma heurística de construção (algoritmo guloso) para a geração de uma solução viável.
 
 - [ ] Implementação de estruturas de vizinhança.
-  - [ ] Com movimentos envolvendo uma única rota.
+  - [x] Com movimentos envolvendo uma única rota.
   - [ ] Com movimentos envolvendo múltiplas rotas.
   - [ ] Capaz de lidar com entregas terceirizadas
         
