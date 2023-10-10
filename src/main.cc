@@ -47,7 +47,7 @@ client greedy_next_client(const apa::context& context, const pending_clients& pe
  * @param initial_solution Estatísticas da solução inicial.
  * @return Estatísticas da melhor solução encontrada.
  */
-apa::stats exhaustive_neighborhood_search_sr(const apa::context& context, const apa::stats& initial_solution);
+apa::stats exhaustive_neighborhood_search(const apa::context& context, const apa::stats& initial_solution);
 
 /**
  * @brief Move um cliente dentro de uma rota.
@@ -57,6 +57,14 @@ apa::stats exhaustive_neighborhood_search_sr(const apa::context& context, const 
  * @return Estatísticas da melhor solução encontrada.
  */
 apa::stats move_client_within_route(const apa::context& context, const apa::stats& solution, vehicle vehicle);
+
+/**
+ * @brief Move um cliente entre rotas.
+ * @param context Instância do problema.n
+ * @param solution Estatísticas da solução atual.
+ * @return Estatísticas da melhor solução encontrada.
+ */
+apa::stats move_client_between_routes(const apa::context& context, const apa::stats& solution);
 
 /**
  * @brief Busca o último cliente atendido na rota de um veículo.
@@ -91,7 +99,7 @@ int main(int argc, char** argv) {
   //  }
 
   const auto& greedy_stats{greedy(context)};
-  const auto& exhaustive_stats{exhaustive_neighborhood_search_sr(context, greedy_stats)};
+  const auto& exhaustive_stats{exhaustive_neighborhood_search(context, greedy_stats)};
 
   apa::stats_serializer::serialize(greedy_stats, std::string("greedy") + apa::kStatsFileExtension);
   apa::stats_serializer::serialize(exhaustive_stats, std::string("neighborhood") + apa::kStatsFileExtension);
@@ -215,11 +223,11 @@ client greedy_next_client(const apa::context& context, const pending_clients& pe
   return client;
 }
 
-apa::stats exhaustive_neighborhood_search_sr(const apa::context& context, const apa::stats& initial_solution) {
+apa::stats exhaustive_neighborhood_search(const apa::context& context, const apa::stats& initial_solution) {
   apa::stats best_solution{initial_solution};
   const std::size_t used_vehicle_count{static_cast<std::size_t>(initial_solution.count_used_vehicles())};
 
-  // Para cada rota, executa a busca local exaustiva.
+  // Vizinhança 1: move um cliente dentro da rota.
   for (std::size_t vehicle = 0; vehicle < used_vehicle_count; vehicle++) {
     const apa::stats new_solution = move_client_within_route(context, best_solution, static_cast<int>(vehicle));
     if (new_solution.total_cost < best_solution.total_cost) {
@@ -227,9 +235,24 @@ apa::stats exhaustive_neighborhood_search_sr(const apa::context& context, const 
     }
   }
 
+  const int neighborhood_1_cost_gain{best_solution.total_cost - initial_solution.total_cost};
+
   if (s_debug) {
-    std::cout << "ex_nbs_sr: best solution difference: " << best_solution.total_cost - initial_solution.total_cost
-              << std::endl;
+    std::cout << "ex_nbs_sr: best solution difference: " << neighborhood_1_cost_gain << std::endl;
+  }
+
+  // Vizinhança 2: move um cliente entre rotas.
+  for (std::size_t vehicle = 0; vehicle < used_vehicle_count; vehicle++) {
+    const apa::stats new_solution = move_client_between_routes(context, best_solution);
+    if (new_solution.total_cost < best_solution.total_cost) {
+      best_solution = new_solution;
+    }
+  }
+
+  const int neighborhood_2_cost_gain{best_solution.total_cost - initial_solution.total_cost - neighborhood_1_cost_gain};
+
+  if (s_debug) {
+    std::cout << "ex_nbs_mr: best solution difference: " << neighborhood_2_cost_gain << std::endl;
   }
 
   return best_solution;
@@ -242,7 +265,7 @@ apa::stats move_client_within_route(const apa::context& context, const apa::stat
   const auto& route{best_solution.routes[vehicle]};
   const std::size_t route_clients_count{route.size()};
 
-  // Examina todas as combinações possíveis de troca de clientes na rota
+  // Permuta todos os pares de clientes possíveis
   for (std::size_t lhs_client = 0; lhs_client < route_clients_count; lhs_client++) {
     for (std::size_t rhs_client = lhs_client + 1; rhs_client < route_clients_count; rhs_client++) {
       apa::stats new_solution{best_solution};
@@ -264,6 +287,57 @@ apa::stats move_client_within_route(const apa::context& context, const apa::stat
         }
 
         best_solution = new_solution;
+      }
+    }
+  }
+
+  return best_solution;
+}
+
+apa::stats move_client_between_routes(const apa::context& context, const apa::stats& solution) {
+  apa::stats best_solution{solution};  // Melhor solução inicial é a solução atual
+
+  const std::size_t routes_count{best_solution.routes.size()};
+
+  // Permuta todos os pares de rotas possíveis
+  for (std::size_t lhs_vehicle = 0; lhs_vehicle < routes_count; ++lhs_vehicle) {
+    for (std::size_t rhs_vehicle = lhs_vehicle + 1; rhs_vehicle < routes_count; ++rhs_vehicle) {
+      // 'move_client_within_route' já faz a troca de clientes dentro da mesma rota.
+      if (lhs_vehicle == rhs_vehicle) {
+        continue;
+      }
+
+      apa::stats new_solution{best_solution};
+
+      std::vector<client>& lhs_route = new_solution.routes[lhs_vehicle];
+      std::vector<client>& rhs_route = new_solution.routes[rhs_vehicle];
+
+      // Permuta todos os pares de clientes possíveis entre as rotas lhs_route e rhs_route.
+      for (client& lhs_client : lhs_route) {
+        for (client& rhs_client : rhs_route) {
+          // Troca os clientes lhs_client e rhs_client nas suas respectivas rotas lhs_route e rhs_route.
+          std::swap(lhs_client, rhs_client);
+
+          // Atualiza os custos da nova solução.
+          new_solution.total_cost = new_solution.recalculate_total_cost(context);
+          new_solution.routing_cost =
+              new_solution.total_cost - new_solution.outsourcing_cost - new_solution.vehicles_cost;
+          new_solution.outsourcing_cost =
+              new_solution.total_cost - new_solution.routing_cost - new_solution.vehicles_cost;
+
+          if (new_solution.total_cost < best_solution.total_cost) {
+            if (s_debug) {
+              std::cout << "ex_nbs_mr: new solution found by swapping clients " << rhs_client << " and " << lhs_client
+                        << " between routes with vehicles " << lhs_vehicle << " and " << rhs_vehicle
+                        << ".\tCost gain: " << new_solution.total_cost - best_solution.total_cost << std::endl;
+            }
+
+            best_solution = new_solution;
+          } else {
+            // A troca não melhorou a solução, então desfaz a troca.
+            std::swap(lhs_client, rhs_client);
+          }
+        }
       }
     }
   }
