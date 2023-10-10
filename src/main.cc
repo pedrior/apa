@@ -42,7 +42,7 @@ client greedy_next_client(const apa::context& context, const pending_clients& pe
                           capacity vehicle_capacity);
 
 /**
- * @brief Busca local exaustiva para o problema de roteamento de veículos em uma única rota.
+ * @brief Melhora a solução inicial utilizando estruturas de vizinhança.
  * @param context Instância do problema.
  * @param initial_solution Estatísticas da solução inicial.
  * @return Estatísticas da melhor solução encontrada.
