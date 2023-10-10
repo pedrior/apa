@@ -109,7 +109,7 @@ apa::stats greedy(const apa::context& context) {
     // Cliente encontrado, atende-o.
     if (target_client != -1) {
       if (s_debug) {
-        std::cout << "Vehicle " << vehicle << " will serve client " << target_client << " with cost "
+        std::cout << "greedy: vehicle " << vehicle << " will serve client " << target_client << " with cost "
                   << context.distance(origin_client, target_client) << std::endl;
       }
 
@@ -142,7 +142,7 @@ apa::stats greedy(const apa::context& context) {
     }
 
     if (s_debug) {
-      std::cout << "Vehicle " << vehicle << " will return to depot with cost "
+      std::cout << "greedy: vehicle " << vehicle << " will return to depot with cost "
                 << context.distance(vehicle_routes[vehicle].back(), 0) << std::endl;
     }
 
