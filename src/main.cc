@@ -39,6 +39,23 @@ client greedy_next_client(const apa::context& context, const pending_clients& pe
                           capacity vehicle_capacity);
 
 /**
+ * @brief Busca local exaustiva para o problema de roteamento de veículos em uma única rota.
+ * @param context Instância do problema.
+ * @param initial_solution Estatísticas da solução inicial.
+ * @return Estatísticas da melhor solução encontrada.
+ */
+apa::stats exhaustive_neighborhood_search_sr(const apa::context& context, const apa::stats& initial_solution);
+
+/**
+ * @brief Move um cliente dentro de uma rota.
+ * @param context Instância do problema.
+ * @param solution Estatísticas da solução atual.
+ * @param route_index Índice da rota a ser considerada.
+ * @return Estatísticas da melhor solução encontrada.
+ */
+apa::stats move_client_within_route(const apa::context& context, const apa::stats& solution, std::size_t route_index);
+
+/**
  * @brief Busca o último cliente atendido na rota de um veículo.
  * @param routes Lista de rotas dos veículos.
  * @param vehicle Veículo a ser considerado.
@@ -71,7 +88,10 @@ int main(int argc, char** argv) {
   //  }
 
   const auto& greedy_stats{greedy(context)};
+  const auto& exhaustive_stats{exhaustive_neighborhood_search_sr(context, greedy_stats)};
+
   apa::stats_serializer::serialize(greedy_stats, std::string("greedy") + apa::kStatsFileExtension);
+  apa::stats_serializer::serialize(exhaustive_stats, std::string("neighborhood") + apa::kStatsFileExtension);
 
   return EXIT_SUCCESS;
 }
@@ -191,6 +211,63 @@ client greedy_next_client(const apa::context& context, const pending_clients& pe
   }
 
   return client;
+}
+
+apa::stats exhaustive_neighborhood_search_sr(const apa::context& context, const apa::stats& initial_solution) {
+  apa::stats best_solution = initial_solution;
+  const std::size_t num_routes{static_cast<std::size_t>(initial_solution.count_used_routes())};
+
+  // Para cada rota, executa a busca local exaustiva.
+  for (std::size_t route = 0; route < num_routes; route++) {
+    apa::stats new_solution = move_client_within_route(context, best_solution, route);
+    if (new_solution.total_cost < best_solution.total_cost) {
+      best_solution = new_solution;
+    }
+  }
+
+  if (s_debug) {
+    std::cout << "ex_nbs_sr: best solution difference: " << best_solution.total_cost - initial_solution.total_cost
+              << std::endl;
+  }
+
+  return best_solution;
+}
+
+apa::stats move_client_within_route(const apa::context& context, const apa::stats& solution, std::size_t route_index) {
+  // Melhor solução inicial é a solução atual
+  apa::stats best_solution = solution;
+
+  const std::vector<int>& current_route = best_solution.routes[route_index];
+  std::size_t num_routes = current_route.size();
+
+  // Examina todas as combinações possíveis de troca de clientes na rota
+  for (std::size_t left_client = 0; left_client < num_routes; left_client++) {
+    for (std::size_t right_client = left_client + 1; right_client < num_routes; right_client++) {
+      apa::stats new_solution = best_solution;
+
+      // Troca os clientes nas posições left_client e right_client na mesma rota.
+      std::swap(new_solution.routes[route_index][left_client], new_solution.routes[route_index][right_client]);
+
+      // Atualiza os custos da nova solução
+      new_solution.total_cost = new_solution.recalculate_total_cost(context);
+      new_solution.routing_cost = new_solution.total_cost - new_solution.outsourcing_cost - new_solution.vehicles_cost;
+      new_solution.outsourcing_cost = new_solution.total_cost - new_solution.routing_cost - new_solution.vehicles_cost;
+
+      // Se a nova solução for melhor que a melhor solução atual, atualiza a melhor solução
+      if (new_solution.total_cost < best_solution.total_cost) {
+        if (s_debug) {
+          std::cout << "ex_nbs_sr: new solution found by swapping clients "
+                    << new_solution.routes[route_index][right_client] << " and "
+                    << new_solution.routes[route_index][left_client] << " in route " << route_index
+                    << ".\tCost gain: " << new_solution.total_cost - best_solution.total_cost << std::endl;
+        }
+
+        best_solution = new_solution;
+      }
+    }
+  }
+
+  return best_solution;
 }
 
 vehicle find_vehicle_with_most_capacity(const vehicle_capacities& vehicle_capacities) {
