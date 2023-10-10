@@ -3,6 +3,7 @@
 #include <ostream>
 #include <string>
 #include <vector>
+#include <filesystem>
 
 namespace apa {
 
@@ -27,7 +28,7 @@ struct context {
 
 class context_parser {
  public:
-  [[nodiscard]] static context parse(const std::string& filename);
+  [[nodiscard]] static context parse(const std::filesystem::path& file);
 };
 
 }  // namespace apa

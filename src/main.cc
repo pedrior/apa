@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <filesystem>
 #include <iostream>
 #include <limits>
 #include <memory>
@@ -91,7 +92,8 @@ int main(int argc, char** argv) {
     s_debug = true;
   }
 
-  const auto& context = apa::context_parser::parse(argv[1]);
+  const std::filesystem::path& input_file{argv[1]};
+  const auto& context = apa::context_parser::parse(input_file);
 
   // Acho que o parser está OK. Qualquer coisa, descomenta aqui e verifica se a instância foi lida corretamente.
   //  if (s_debug) {
@@ -101,8 +103,10 @@ int main(int argc, char** argv) {
   const auto& greedy_stats{greedy(context)};
   const auto& exhaustive_stats{exhaustive_neighborhood_search(context, greedy_stats)};
 
-  apa::stats_serializer::serialize(greedy_stats, std::string("greedy") + apa::kStatsFileExtension);
-  apa::stats_serializer::serialize(exhaustive_stats, std::string("neighborhood") + apa::kStatsFileExtension);
+  const std::string& filename{input_file.stem().string()};
+
+  apa::stats_serializer::serialize(greedy_stats, filename + std::string("_greedy.txt"));
+  apa::stats_serializer::serialize(exhaustive_stats, filename + std::string("_neighborhood.txt"));
 
   return EXIT_SUCCESS;
 }

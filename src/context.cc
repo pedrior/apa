@@ -35,41 +35,41 @@ std::ostream& operator<<(std::ostream& os, const context& context) {
   return os;
 }
 
-context context_parser::parse(const std::string& filename) {
-  std::ifstream file{filename, std::ios::in};
-  if (!file.is_open()) {
-    throw std::runtime_error{"Could not open file: " + filename};
+context context_parser::parse(const std::filesystem::path& file) {
+  std::ifstream fs{file, std::ios::in};
+  if (!fs.is_open()) {
+    throw std::runtime_error{"Could not open file: " + file.string()};
   }
 
   int n, k, q, l, r;
-  file >> n >> k >> q >> l >> r;
+  fs >> n >> k >> q >> l >> r;
 
   std::vector<int> d(n);
   for (int i = 0; i < n; ++i) {
-    file >> d[i];
+    fs >> d[i];
   }
 
   std::vector<int> p(n);
   for (int i = 0; i < n; ++i) {
-    file >> p[i];
+    fs >> p[i];
   }
 
   std::vector<std::vector<int>> c(n + 1, std::vector<int>(n + 1));
   for (int i = 0; i < n + 1; ++i) {
     for (int j = 0; j < n + 1; ++j) {
-      file >> c[i][j];
+      fs >> c[i][j];
     }
   }
 
   return {
       n,  // clients
-      k,      // vehicles
-      q,      // vehicle_capacity
-      l,      // non_outsource_clients
-      r,      // vehicle_cost
-      d,      // demands
-      p,      // outsourcing_costs
-      c       // distances
+      k,  // vehicles
+      q,  // vehicle_capacity
+      l,  // non_outsource_clients
+      r,  // vehicle_cost
+      d,  // demands
+      p,  // outsourcing_costs
+      c   // distances
   };
 }
 

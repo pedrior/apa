@@ -1,6 +1,3 @@
 *.d
 *.o
 *.exe
-
-greedy.txt
-neighborhood.txt

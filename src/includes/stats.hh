@@ -7,8 +7,6 @@
 
 namespace apa {
 
-static constexpr auto kStatsFileExtension = ".txt";
-
 struct stats {
   int total_cost;
   int routing_cost;
