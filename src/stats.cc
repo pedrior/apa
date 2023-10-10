@@ -48,36 +48,39 @@ int stats::count_used_vehicles() const {
 }
 
 int stats::recalculate_total_cost(const apa::context& context) const {
-  int total_cost_internal{};
+  int total_routing_cost{};
+  int total_vehicle_cost{};
+  int total_outsourcing_cost{};
 
   // Calcula o custo de roteamento.
-  for (const auto& route : routes) {
-    for (std::size_t i = 0; i < route.size() - 1; i++) {
-      // Adiciona o custo de ir de um cliente ao próximo na rota atual.
-      total_cost_internal += context.distance(route[i], route[i + 1]);
-    }
-
-    // Se a rota não estiver vazia, adiciona o custo de ir do último cliente ao primeiro (de volta ao depósito).
-    if (!route.empty()) {
-      total_cost_internal += context.distance(route.back(), route.front());
-    }
-  }
-
-  // Calcula o custo de terceirização.
-  for (const auto& client : outsourced_clients) {
-    total_cost_internal += context.outsourcing_cost(client);
-  }
-
-  // Calcula o custo de utilização dos veículos.
   for (const auto& route : routes) {
     if (route.empty()) {
       continue;
     }
 
-    total_cost_internal += context.vehicle_cost;
+    int prev_client{0};  // O depósito (0) é o ponto de partida.
+    for (int client : route) {
+      total_routing_cost += context.distance(prev_client, client);
+      prev_client = client;
+    }
+
+    // Adicionar o custo de retorno ao depósito
+    total_routing_cost += context.distance(prev_client, 0);
   }
 
-  return total_cost_internal;
+  // Calcula o custo de terceirização.
+  for (const auto& client : outsourced_clients) {
+    total_outsourcing_cost += context.outsourcing_cost(client);
+  }
+
+  // Calcula o custo de utilização dos veículos.
+  for (const auto& route : routes) {
+    if (!route.empty()) {
+      total_vehicle_cost += context.vehicle_cost;
+    }
+  }
+
+  return total_routing_cost + total_vehicle_cost + total_outsourcing_cost;
 }
 
 void stats_serializer::serialize(const stats& stats, const std::string& filename) {
