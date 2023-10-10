@@ -11,7 +11,7 @@ todos do mesmo modelo e com capacidade ```Q```. Todos os veículos devem iniciar
 
 - [ ] Implementação de estruturas de vizinhança.
   - [x] Com movimentos envolvendo uma única rota.
-  - [ ] Com movimentos envolvendo múltiplas rotas.
+  - [x] Com movimentos envolvendo múltiplas rotas.
   - [ ] Capaz de lidar com entregas terceirizadas
         
   > ℹ️ Todas as estruturas devem realizar uma busca exaustiva na vizinhaça, o que significa que devem verificar todas as possíveis combinações.
