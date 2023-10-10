@@ -20,6 +20,9 @@ using routes = std::vector<std::vector<client>>;
 
 static bool s_debug{};
 
+constexpr int kDepot{0};  // Depósito é o "cliente" 0.
+constexpr int kNotFound{-1};
+
 /**
  * @brief Algoritmo guloso para o problema de roteamento de veículos.
  * @param context Instância do problema.
@@ -50,10 +53,10 @@ apa::stats exhaustive_neighborhood_search_sr(const apa::context& context, const 
  * @brief Move um cliente dentro de uma rota.
  * @param context Instância do problema.
  * @param solution Estatísticas da solução atual.
- * @param route_index Índice da rota a ser considerada.
+ * @param vehicle Veículo que identifica a rota.
  * @return Estatísticas da melhor solução encontrada.
  */
-apa::stats move_client_within_route(const apa::context& context, const apa::stats& solution, std::size_t route_index);
+apa::stats move_client_within_route(const apa::context& context, const apa::stats& solution, vehicle vehicle);
 
 /**
  * @brief Busca o último cliente atendido na rota de um veículo.
@@ -97,10 +100,9 @@ int main(int argc, char** argv) {
 }
 
 apa::stats greedy(const apa::context& context) {
-  int total_routing_cost{0};
-  int total_outsourcing_cost{0};
-
-  routes vehicle_routes{};
+  int total_routing_cost{};
+  int total_outsourcing_cost{};
+  routes routes{};
   pending_clients pending_clients{};
   outsourced_clients outsourced_clients{};
   vehicle_capacities vehicle_capacities{};
@@ -111,7 +113,7 @@ apa::stats greedy(const apa::context& context) {
   }
 
   // Inicializa as rotas dos veículos.
-  vehicle_routes = std::vector<std::vector<vehicle>>(context.vehicles, std::vector<client>{});
+  routes = std::vector<std::vector<vehicle>>(context.vehicles, std::vector<client>{});
 
   // Inicializa as capacidades dos veículos.
   vehicle_capacities = std::vector<vehicle>(context.vehicles, context.vehicle_capacity);
@@ -121,20 +123,20 @@ apa::stats greedy(const apa::context& context) {
     const capacity vehicle_capacity{vehicle_capacities[vehicle]};
 
     // Considera o último cliente atendido na rota do veículo atual como origem para o próximo cliente a ser atendido.
-    // Se a rota estiver vazia, o cliente é o depósito (0).
-    const client origin_client{find_last_client_in_route(vehicle_routes, vehicle)};
+    // Se a rota estiver vazia, o cliente é o depósito (kDepot).
+    const client origin_client{find_last_client_in_route(routes, vehicle)};
 
     // Encontra o próximo cliente a ser atendido.
     const client target_client{greedy_next_client(context, pending_clients, origin_client, vehicle_capacity)};
 
     // Cliente encontrado, atende-o.
-    if (target_client != -1) {
+    if (target_client != kNotFound) {
       if (s_debug) {
         std::cout << "greedy: vehicle " << vehicle << " will serve client " << target_client << " with cost "
                   << context.distance(origin_client, target_client) << std::endl;
       }
 
-      vehicle_routes[vehicle].push_back(target_client);  // Adiciona o cliente à rota do veículo atual.
+      routes[vehicle].push_back(target_client);  // Adiciona o cliente à rota do veículo atual.
 
       total_routing_cost += context.distance(origin_client, target_client);  // Atualiza o custo de roteamento.
       vehicle_capacities[vehicle] -= context.demand(target_client);          // Atualiza a capacidade do veículo.
@@ -156,19 +158,19 @@ apa::stats greedy(const apa::context& context) {
   }
 
   // Neste ponto, todos os clientes foram atendidos ou terceirizados. Agora, é necessário retornar ao depósito.
-  for (int vehicle = 0; vehicle < context.vehicles; vehicle++) {
+  for (vehicle vehicle = 0; vehicle < context.vehicles; vehicle++) {
     // O veículo atual não foi utilizado (não possui rota), então não é necessário retornar ao depósito.
-    if (vehicle_routes[vehicle].empty()) {
+    if (routes[vehicle].empty()) {
       continue;
     }
 
     if (s_debug) {
       std::cout << "greedy: vehicle " << vehicle << " will return to depot with cost "
-                << context.distance(vehicle_routes[vehicle].back(), 0) << std::endl;
+                << context.distance(routes[vehicle].back(), kDepot) << std::endl;
     }
 
     // Atualiza o custo de roteamento com o retorno ao depósito.
-    total_routing_cost += context.distance(vehicle_routes[vehicle].back(), 0);
+    total_routing_cost += context.distance(routes[vehicle].back(), kDepot);
   }
 
   int total_vehicle_cost{};
@@ -188,7 +190,7 @@ apa::stats greedy(const apa::context& context) {
       total_vehicle_cost,      // vehicles_cost
       total_outsourcing_cost,  // outsourcing_cost
       outsourced_clients,      // outsourced_clients
-      vehicle_routes           // routes
+      routes                   // routes
   };
 }
 
@@ -214,12 +216,12 @@ client greedy_next_client(const apa::context& context, const pending_clients& pe
 }
 
 apa::stats exhaustive_neighborhood_search_sr(const apa::context& context, const apa::stats& initial_solution) {
-  apa::stats best_solution = initial_solution;
-  const std::size_t num_routes{static_cast<std::size_t>(initial_solution.count_used_routes())};
+  apa::stats best_solution{initial_solution};
+  const std::size_t used_vehicle_count{static_cast<std::size_t>(initial_solution.count_used_vehicles())};
 
   // Para cada rota, executa a busca local exaustiva.
-  for (std::size_t route = 0; route < num_routes; route++) {
-    apa::stats new_solution = move_client_within_route(context, best_solution, route);
+  for (std::size_t vehicle = 0; vehicle < used_vehicle_count; vehicle++) {
+    const apa::stats new_solution = move_client_within_route(context, best_solution, static_cast<int>(vehicle));
     if (new_solution.total_cost < best_solution.total_cost) {
       best_solution = new_solution;
     }
@@ -233,32 +235,31 @@ apa::stats exhaustive_neighborhood_search_sr(const apa::context& context, const 
   return best_solution;
 }
 
-apa::stats move_client_within_route(const apa::context& context, const apa::stats& solution, std::size_t route_index) {
+apa::stats move_client_within_route(const apa::context& context, const apa::stats& solution, vehicle vehicle) {
   // Melhor solução inicial é a solução atual
-  apa::stats best_solution = solution;
+  apa::stats best_solution{solution};
 
-  const std::vector<int>& current_route = best_solution.routes[route_index];
-  std::size_t num_routes = current_route.size();
+  const auto& route{best_solution.routes[vehicle]};
+  const std::size_t route_clients_count{route.size()};
 
   // Examina todas as combinações possíveis de troca de clientes na rota
-  for (std::size_t left_client = 0; left_client < num_routes; left_client++) {
-    for (std::size_t right_client = left_client + 1; right_client < num_routes; right_client++) {
-      apa::stats new_solution = best_solution;
+  for (std::size_t lhs_client = 0; lhs_client < route_clients_count; lhs_client++) {
+    for (std::size_t rhs_client = lhs_client + 1; rhs_client < route_clients_count; rhs_client++) {
+      apa::stats new_solution{best_solution};
 
-      // Troca os clientes nas posições left_client e right_client na mesma rota.
-      std::swap(new_solution.routes[route_index][left_client], new_solution.routes[route_index][right_client]);
+      // Troca os clientes nas posições lhs_client e rhs_client na mesma rota.
+      std::swap(new_solution.routes[vehicle][lhs_client], new_solution.routes[vehicle][rhs_client]);
 
-      // Atualiza os custos da nova solução
+      // Atualiza os custos da nova solução.
       new_solution.total_cost = new_solution.recalculate_total_cost(context);
       new_solution.routing_cost = new_solution.total_cost - new_solution.outsourcing_cost - new_solution.vehicles_cost;
       new_solution.outsourcing_cost = new_solution.total_cost - new_solution.routing_cost - new_solution.vehicles_cost;
 
-      // Se a nova solução for melhor que a melhor solução atual, atualiza a melhor solução
+      // Se a nova solução for melhor que a melhor solução atual, atualiza a melhor solução.
       if (new_solution.total_cost < best_solution.total_cost) {
         if (s_debug) {
-          std::cout << "ex_nbs_sr: new solution found by swapping clients "
-                    << new_solution.routes[route_index][right_client] << " and "
-                    << new_solution.routes[route_index][left_client] << " in route " << route_index
+          std::cout << "ex_nbs_sr: new solution found by swapping clients " << new_solution.routes[vehicle][rhs_client]
+                    << " and " << new_solution.routes[vehicle][lhs_client] << " in route with vehicle " << vehicle
                     << ".\tCost gain: " << new_solution.total_cost - best_solution.total_cost << std::endl;
         }
 
@@ -271,7 +272,7 @@ apa::stats move_client_within_route(const apa::context& context, const apa::stat
 }
 
 vehicle find_vehicle_with_most_capacity(const vehicle_capacities& vehicle_capacities) {
-  vehicle vehicle{0};
+  vehicle vehicle{};
 
   for (std::size_t current_vehicle = 0; current_vehicle < vehicle_capacities.size(); current_vehicle++) {
     if (vehicle_capacities[current_vehicle] > vehicle_capacities[vehicle]) {
@@ -283,6 +284,6 @@ vehicle find_vehicle_with_most_capacity(const vehicle_capacities& vehicle_capaci
 }
 
 client find_last_client_in_route(const routes& routes, vehicle vehicle) {
-  return routes[vehicle].empty() ? 0  // A rota está vazia, então o cliente é o depósito (0).
+  return routes[vehicle].empty() ? kDepot  // A rota está vazia, então o cliente é o depósito (kDepot).
                                  : routes[vehicle].back();
 }

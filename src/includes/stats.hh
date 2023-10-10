@@ -17,7 +17,7 @@ struct stats {
   std::vector<int> outsourced_clients;
   std::vector<std::vector<int>> routes;
 
-  [[nodiscard]] int count_used_routes() const;
+  [[nodiscard]] int count_used_vehicles() const;
 
   [[nodiscard]] int recalculate_total_cost(const apa::context& context) const;
 

@@ -36,15 +36,15 @@ std::ostream& operator<<(std::ostream& os, const stats& stats) {
   return os;
 }
 
-int stats::count_used_routes() const {
-  int used_routes{0};
+int stats::count_used_vehicles() const {
+  int used_vehicle{0};
   for (const auto& route : routes) {
     if (!route.empty()) {
-      used_routes++;
+      used_vehicle++;
     }
   }
 
-  return used_routes;
+  return used_vehicle;
 }
 
 int stats::recalculate_total_cost(const apa::context& context) const {
