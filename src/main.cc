@@ -65,9 +65,10 @@ int main(int argc, char** argv) {
 
   const auto& context = apa::context_parser::parse(argv[1]);
 
-  if (s_debug) {
-    std ::cout << context << std::endl;
-  }
+  // Acho que o parser está OK. Qualquer coisa, descomenta aqui e verifica se a instância foi lida corretamente.
+  //  if (s_debug) {
+  //    std ::cout << context << std::endl;
+  //  }
 
   const auto& greedy_stats{greedy(context)};
   apa::stats_serializer::serialize(greedy_stats, std::string("greedy") + apa::kStatsFileExtension);
