@@ -52,20 +52,20 @@ client greedy_next_client(const apa::context& context, const pending_clients& pe
 apa::stats variable_neighborhood_descent(const apa::context& context, const apa::stats& initial_solution);
 
 /**
- * @brief Estrutura de vizinhança que realiza movimentos envolvendo clientes na mesma rota.
+ * @brief Realiza movimentos envolvendo clientes na mesma rota.
  * @param context Instância do problema.
  * @param initial_solution Estatísticas da solução inicial.
  * @return Estatísticas da melhor solução encontrada.
  */
-apa::stats move_client_within_route(const apa::context& context, const apa::stats& initial_solution);
+apa::stats move_client_intra_route(const apa::context& context, const apa::stats& initial_solution);
 
 /**
- * @brief Estrutura de vizinhança que realiza movimentos envolvendo clientes em rotas diferentes.
+ * @brief Realiza movimentos envolvendo clientes entre rotas.
  * @param context Instância do problema.
  * @param initial_solution Estatísticas da solução inicial.
  * @return Estatísticas da melhor solução encontrada.
  */
-apa::stats move_client_between_routes(const apa::context& context, const apa::stats& initial_solution);
+apa::stats move_client_inter_routes(const apa::context& context, const apa::stats& initial_solution);
 
 /**
  * @brief Estrutura de vizinhança que realiza movimentos envolvendo terceirização de clientes.
@@ -240,7 +240,7 @@ apa::stats variable_neighborhood_descent(const apa::context& context, const apa:
 
   // Estruturas de vizinhança.
   std::vector<apa::stats (*)(const apa::context&, const apa::stats&)> neighborhoods = {
-      move_client_within_route, move_client_between_routes, move_client_with_outsourcing};
+      move_client_intra_route, move_client_inter_routes, move_client_with_outsourcing};
 
   // Índice da estrutura de vizinhança.
   std::size_t neighborhood_index{};
@@ -258,11 +258,11 @@ apa::stats variable_neighborhood_descent(const apa::context& context, const apa:
       neighborhood_index = 0;
     } else {
       if (s_debug) {
-        std::cout << "vnd: no improvement in neighborhood "
-                  << (neighborhood_index == 0   ? "sr"
-                      : neighborhood_index == 1 ? "mr"
-                                                : "os")
-                  << std::endl;
+        std::cout << "vnd: no improvement in "
+                  << (neighborhood_index == 0   ? "intra routes"
+                      : neighborhood_index == 1 ? "inter routes"
+                                                : "outsourcing")
+                  << " neighborhood" << std::endl;
       }
 
       // Incrementa o índice da estrutura de vizinhança. Se o índice igualar ao tamanho do vetor de estruturas de
@@ -279,7 +279,7 @@ apa::stats variable_neighborhood_descent(const apa::context& context, const apa:
   return best_solution;
 }
 
-apa::stats move_client_within_route(const apa::context& context, const apa::stats& initial_solution) {
+apa::stats move_client_intra_route(const apa::context& context, const apa::stats& initial_solution) {
   apa::stats best_solution{initial_solution};
 
   // Para cada veículo, isto é, para cada rota...
@@ -306,8 +306,8 @@ apa::stats move_client_within_route(const apa::context& context, const apa::stat
         if (current_solution.total_cost < best_solution.total_cost) {
           if (s_debug) {
             std::cout << "vnd: swapping clients " << current_solution.routes[vehicle][rhs_client] << " and "
-                      << current_solution.routes[vehicle][lhs_client] << " in route with vehicle " << vehicle
-                      << ".\tCost gain: " << current_solution.total_cost - best_solution.total_cost << std::endl;
+                      << current_solution.routes[vehicle][lhs_client] << " ("
+                      << current_solution.total_cost - best_solution.total_cost << ")" << std::endl;
           }
 
           best_solution = current_solution;
@@ -319,7 +319,7 @@ apa::stats move_client_within_route(const apa::context& context, const apa::stat
   return best_solution;
 }
 
-apa::stats move_client_between_routes(const apa::context& context, const apa::stats& initial_solution) {
+apa::stats move_client_inter_routes(const apa::context& context, const apa::stats& initial_solution) {
   apa::stats best_solution{initial_solution};
 
   // Para cada par de veículos, isto é, para cada par de rotas...
@@ -354,9 +354,8 @@ apa::stats move_client_between_routes(const apa::context& context, const apa::st
           // Se a solução atual for melhor que a melhor solução encontrada até o momento, atualiza a melhor solução.
           if (current_solution.total_cost < best_solution.total_cost) {
             if (s_debug) {
-              std::cout << "vnd: swapping clients " << rhs_client << " and " << lhs_client
-                        << " between routes with vehicles " << lhs_vehicle << " and " << rhs_vehicle
-                        << ".\tCost gain: " << current_solution.total_cost - best_solution.total_cost << std::endl;
+              std::cout << "vnd: swapping clients " << rhs_client << " and " << lhs_client << " ("
+                        << current_solution.total_cost - best_solution.total_cost << ")" << std::endl;
             }
 
             best_solution = current_solution;
@@ -399,8 +398,8 @@ apa::stats move_client_with_outsourcing(const apa::context& context, const apa::
       // Se a solução atual for melhor que a melhor solução encontrada até o momento, atualiza a melhor solução.
       if (current_solution.total_cost < best_solution.total_cost) {
         if (s_debug) {
-          std::cout << "vnd: outsource client " << client << " from route with vehicle " << vehicle
-                    << ".\tCost gain: " << current_solution.total_cost - best_solution.total_cost << std::endl;
+          std::cout << "vnd: outsource client " << client << " ("
+                    << current_solution.total_cost - best_solution.total_cost << ")" << std::endl;
         }
 
         best_solution = current_solution;
