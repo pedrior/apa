@@ -311,6 +311,10 @@ apa::stats move_client_intra_route(const apa::context& context, const apa::stats
           }
 
           best_solution = current_solution;
+        } else {
+          // A troca não melhorou a solução, então desfaz a troca para que a próxima iteração possa examinar outro par
+          // de clientes possíveis.
+          std::swap(current_solution.routes[vehicle][lhs_client], current_solution.routes[vehicle][rhs_client]);
         }
       }
     }
