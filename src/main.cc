@@ -338,6 +338,13 @@ apa::stats move_client_between_routes(const apa::context& context, const apa::st
       // Examina todos os pares de clientes possíveis entre as rotas lhs_route e rhs_route.
       for (client& lhs_client : lhs_route) {
         for (client& rhs_client : rhs_route) {
+          // Se a troca ocasionar uma violação de capacidade do veículo (lhs_vehicle ou rhs_vehicle), não é possível
+          // realizar a troca de clientes.
+          if (context.demand(lhs_client) > context.vehicle_capacity - context.demand(rhs_client) ||
+              context.demand(rhs_client) > context.vehicle_capacity - context.demand(lhs_client)) {
+            continue;
+          }
+
           // Troca os clientes lhs_client e rhs_client. Observe que estamos trocando os clientes por referência.
           std::swap(lhs_client, rhs_client);
 
