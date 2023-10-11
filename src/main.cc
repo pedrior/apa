@@ -24,9 +24,6 @@ static bool s_debug{};
 constexpr int kDepot{0};  // Depósito é o "cliente" 0.
 constexpr int kNotFound{-1};
 
-// Número máximo de iterações sem melhoria para o algoritmo VND.
-constexpr std::size_t kVndIterationThreshold{50};
-
 /**
  * @brief Algoritmo guloso para o problema de roteamento de veículos.
  * @param context Instância do problema.
@@ -52,8 +49,7 @@ client greedy_next_client(const apa::context& context, const pending_clients& pe
  * @param iteration_threshold Número máximo de iterações sem melhoria.
  * @return Estatísticas da melhor solução encontrada.
  */
-apa::stats variable_neighborhood_descent(const apa::context& context, const apa::stats& initial_solution,
-                                         std::size_t iteration_threshold);
+apa::stats variable_neighborhood_descent(const apa::context& context, const apa::stats& initial_solution);
 
 /**
  * @brief Estrutura de vizinhança que realiza movimentos envolvendo clientes na mesma rota.
@@ -113,7 +109,7 @@ int main(int argc, char** argv) {
   //  }
 
   const auto& greedy_stats{greedy(context)};
-  const auto& vnd_stats{variable_neighborhood_descent(context, greedy_stats, kVndIterationThreshold)};
+  const auto& vnd_stats{variable_neighborhood_descent(context, greedy_stats)};
 
   const std::string& filename{input_file.stem().string()};
 
@@ -239,38 +235,40 @@ client greedy_next_client(const apa::context& context, const pending_clients& pe
   return client;
 }
 
-apa::stats variable_neighborhood_descent(const apa::context& context, const apa::stats& initial_solution,
-                                         std::size_t iteration_threshold) {
+apa::stats variable_neighborhood_descent(const apa::context& context, const apa::stats& initial_solution) {
   apa::stats best_solution{initial_solution};  // A solução inicial é a melhor solução.
-  std::size_t iteration{};                     // Número de iterações sem melhoria.
 
   // Estruturas de vizinhança.
   std::vector<apa::stats (*)(const apa::context&, const apa::stats&)> neighborhoods = {
       move_client_within_route, move_client_between_routes, move_client_with_outsourcing};
 
-  // Enquanto o número de iterações sem melhoria for menor que o limiar...
-  while (iteration < iteration_threshold) {
-    for (const auto& neighborhood : neighborhoods) {
-      // Aplica a estrutura de vizinhança na melhor solução encontrada até o momento.
-      apa::stats current_solution{neighborhood(context, best_solution)};
+  // Índice da estrutura de vizinhança.
+  std::size_t neighborhood_index{};
 
-      // Se a solução atual for melhor que a melhor solução encontrada até o momento, atualiza a melhor solução.
-      if (current_solution.total_cost < best_solution.total_cost) {
-        best_solution = current_solution;
+  while (neighborhood_index < neighborhoods.size()) {
+    // Aplica a estrutura de vizinhança na melhor solução encontrada até o momento.
+    const auto& neighborhood{neighborhoods[neighborhood_index]};
+    apa::stats current_solution{neighborhood(context, best_solution)};
 
-        // Reseta o número de iterações sem melhoria.
-        iteration = 0;
-      } else {
-        iteration++;
-      }
+    // Se a solução atual for melhor que a melhor solução encontrada até o momento, atualiza a melhor solução.
+    if (current_solution.total_cost < best_solution.total_cost) {
+      best_solution = current_solution;
 
+      // Reseta o índice da estrutura de vizinhança.
+      neighborhood_index = 0;
+    } else {
       if (s_debug) {
         std::cout << "vnd: no improvement in neighborhood "
-                  << (neighborhood == move_client_within_route     ? "sr"
-                      : neighborhood == move_client_between_routes ? "mr"
-                                                                   : "os")
-                  << ".\tIteration: " << iteration << std::endl;
+                  << (neighborhood_index == 0   ? "sr"
+                      : neighborhood_index == 1 ? "mr"
+                                                : "os")
+                  << std::endl;
       }
+
+      // Incrementa o índice da estrutura de vizinhança. Se o índice igualar ao tamanho do vetor de estruturas de
+      // vizinhança, não há mais melhorias possíveis (todas as estruturas de vizinhança foram aplicadas). Neste caso,
+      // o algoritmo termina.
+      neighborhood_index++;
     }
   }
 
@@ -307,7 +305,7 @@ apa::stats move_client_within_route(const apa::context& context, const apa::stat
         // Se a solução atual for melhor que a melhor solução encontrada até o momento, atualiza a melhor solução.
         if (current_solution.total_cost < best_solution.total_cost) {
           if (s_debug) {
-            std::cout << "vnd-sr: swapping clients " << current_solution.routes[vehicle][rhs_client] << " and "
+            std::cout << "vnd: swapping clients " << current_solution.routes[vehicle][rhs_client] << " and "
                       << current_solution.routes[vehicle][lhs_client] << " in route with vehicle " << vehicle
                       << ".\tCost gain: " << current_solution.total_cost - best_solution.total_cost << std::endl;
           }
@@ -349,7 +347,7 @@ apa::stats move_client_between_routes(const apa::context& context, const apa::st
           // Se a solução atual for melhor que a melhor solução encontrada até o momento, atualiza a melhor solução.
           if (current_solution.total_cost < best_solution.total_cost) {
             if (s_debug) {
-              std::cout << "vnd-mr: swapping clients " << rhs_client << " and " << lhs_client
+              std::cout << "vnd: swapping clients " << rhs_client << " and " << lhs_client
                         << " between routes with vehicles " << lhs_vehicle << " and " << rhs_vehicle
                         << ".\tCost gain: " << current_solution.total_cost - best_solution.total_cost << std::endl;
             }
@@ -394,7 +392,7 @@ apa::stats move_client_with_outsourcing(const apa::context& context, const apa::
       // Se a solução atual for melhor que a melhor solução encontrada até o momento, atualiza a melhor solução.
       if (current_solution.total_cost < best_solution.total_cost) {
         if (s_debug) {
-          std::cout << "vnd-os: outsource client " << client << " from route with vehicle " << vehicle
+          std::cout << "vnd: outsource client " << client << " from route with vehicle " << vehicle
                     << ".\tCost gain: " << current_solution.total_cost - best_solution.total_cost << std::endl;
         }
 
