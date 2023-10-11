@@ -53,7 +53,7 @@ apa::stats exhaustive_neighborhood_search(const apa::context& context, const apa
 /**
  * @brief Estrutura de vizinhança que realiza movimentos envolvendo clientes na mesma rota.
  * @param context Instância do problema.
- * @param initial_solution Estatísticas da solução atual.
+ * @param initial_solution Estatísticas da solução inicial.
  * @return Estatísticas da melhor solução encontrada.
  */
 apa::stats move_client_within_route(const apa::context& context, const apa::stats& initial_solution);
@@ -61,10 +61,18 @@ apa::stats move_client_within_route(const apa::context& context, const apa::stat
 /**
  * @brief Estrutura de vizinhança que realiza movimentos envolvendo clientes em rotas diferentes.
  * @param context Instância do problema.
- * @param initial_solution Estatísticas da solução atual.
+ * @param initial_solution Estatísticas da solução inicial.
  * @return Estatísticas da melhor solução encontrada.
  */
 apa::stats move_client_between_routes(const apa::context& context, const apa::stats& initial_solution);
+
+/**
+ * @brief Estrutura de vizinhança que realiza movimentos envolvendo terceirização de clientes.
+ * @param context Instância do problema.
+ * @param initial_solution Estatísticas da solução inicial.
+ * @return Estatísticas da melhor solução encontrada.
+ */
+apa::stats move_client_with_outsourcing(const apa::context& context, const apa::stats& initial_solution);
 
 /**
  * @brief Busca o último cliente atendido na rota de um veículo.
@@ -247,6 +255,14 @@ apa::stats exhaustive_neighborhood_search(const apa::context& context, const apa
     std::cout << "nbs_mr: best solution gain: " << nb_2_cost_gain << std::endl;
   }
 
+  // Vizinhança 3: move clientes lidando com terceirização.
+  best_solution = move_client_with_outsourcing(context, best_solution);
+  const int nb_3_cost_gain{best_solution.total_cost - initial_solution.total_cost - nb_1_cost_gain - nb_2_cost_gain};
+
+  if (s_debug) {
+    std::cout << "nbs_ou: best solution gain: " << nb_3_cost_gain << std::endl;
+  }
+
   return best_solution;
 }
 
@@ -331,6 +347,50 @@ apa::stats move_client_between_routes(const apa::context& context, const apa::st
             std::swap(lhs_client, rhs_client);
           }
         }
+      }
+    }
+  }
+
+  return best_solution;
+}
+
+apa::stats move_client_with_outsourcing(const apa::context& context, const apa::stats& initial_solution) {
+  apa::stats best_solution{initial_solution};
+
+  // Para cada veículo, isto é, para cada rota...
+  for (vehicle vehicle = 0; vehicle < context.vehicles; vehicle++) {
+    // Para cada cliente na rota...
+    for (const client client : best_solution.routes[vehicle]) {
+      apa::stats current_solution{best_solution};
+
+      // Encontra o índice do cliente na rota atual.
+      const auto& client_index =
+          std::find(current_solution.routes[vehicle].begin(), current_solution.routes[vehicle].end(), client) -
+          current_solution.routes[vehicle].begin();
+
+      // Remove o cliente da rota atual.
+      current_solution.routes[vehicle].erase(current_solution.routes[vehicle].begin() + client_index);
+
+      // Insere o cliente removido na lista de clientes terceirizados.
+      current_solution.outsourced_clients.insert(current_solution.outsourced_clients.begin(), client);
+
+      // Atualiza os custos da nova solução.
+      current_solution = apa::update_stats(context, current_solution);
+
+      // Se a solução atual for melhor que a melhor solução encontrada até o momento, atualiza a melhor solução.
+      if (current_solution.total_cost < best_solution.total_cost) {
+        if (s_debug) {
+          std::cout << "nbs_os: new solution found by outsourcing client " << client << " from route with vehicle "
+                    << vehicle << ".\tCost gain: " << current_solution.total_cost - best_solution.total_cost
+                    << std::endl;
+        }
+
+        best_solution = current_solution;
+      } else {
+        // A terceirização não melhorou a solução, então desfaz a terceirização para que a próxima iteração possa
+        // examinar outro cliente.
+        current_solution.outsourced_clients.erase(current_solution.outsourced_clients.begin());
+        current_solution.routes[vehicle].insert(current_solution.routes[vehicle].begin() + client_index, client);
       }
     }
   }
