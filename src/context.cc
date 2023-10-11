@@ -10,7 +10,7 @@ std::ostream& operator<<(std::ostream& os, const context& context) {
   os << context.clients << "\n"
      << context.vehicles << "\n"
      << context.vehicle_capacity << "\n"
-     << context.non_outsource_clients << "\n"
+     << context.delivery_threshold << "\n"
      << context.vehicle_cost;
 
   os << "\n\n";

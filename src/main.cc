@@ -381,6 +381,11 @@ apa::stats move_client_with_outsourcing(const apa::context& context, const apa::
     for (const client client : best_solution.routes[vehicle]) {
       apa::stats current_solution{best_solution};
 
+      // Verifica se a solução atual atingiu o limite de terceirizações.
+      if (static_cast<int>(current_solution.outsourced_clients.size()) == context.outsourcing_threshold()) {
+        return current_solution;
+      }
+
       // Encontra o índice do cliente na rota atual.
       const auto& client_index =
           std::find(current_solution.routes[vehicle].begin(), current_solution.routes[vehicle].end(), client) -
