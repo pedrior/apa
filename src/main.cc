@@ -325,11 +325,6 @@ apa::stats move_client_inter_routes(const apa::context& context, const apa::stat
   // Para cada par de veículos, isto é, para cada par de rotas...
   for (vehicle lhs_vehicle = 0; lhs_vehicle < context.vehicles; lhs_vehicle++) {
     for (vehicle rhs_vehicle = lhs_vehicle + 1; rhs_vehicle < context.vehicles; rhs_vehicle++) {
-      // Caso em que as rotas são iguais, já foram examinadas na vizinhança 1 e não precisam ser examinadas novamente?
-      if (lhs_vehicle == rhs_vehicle) {
-        continue;
-      }
-
       apa::stats current_solution{best_solution};
 
       std::vector<client>& lhs_route = current_solution.routes[lhs_vehicle];
