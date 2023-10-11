@@ -24,6 +24,9 @@ static bool s_debug{};
 constexpr int kDepot{0};  // Depósito é o "cliente" 0.
 constexpr int kNotFound{-1};
 
+// Número máximo de iterações sem melhoria para o algoritmo VND.
+constexpr std::size_t kVndIterationThreshold{50};
+
 /**
  * @brief Algoritmo guloso para o problema de roteamento de veículos.
  * @param context Instância do problema.
@@ -46,9 +49,11 @@ client greedy_next_client(const apa::context& context, const pending_clients& pe
  * @brief Melhora a solução inicial utilizando estruturas de vizinhança.
  * @param context Instância do problema.
  * @param initial_solution Estatísticas da solução inicial.
+ * @param iteration_threshold Número máximo de iterações sem melhoria.
  * @return Estatísticas da melhor solução encontrada.
  */
-apa::stats exhaustive_neighborhood_search(const apa::context& context, const apa::stats& initial_solution);
+apa::stats variable_neighborhood_descent(const apa::context& context, const apa::stats& initial_solution,
+                                         std::size_t iteration_threshold);
 
 /**
  * @brief Estrutura de vizinhança que realiza movimentos envolvendo clientes na mesma rota.
@@ -108,14 +113,12 @@ int main(int argc, char** argv) {
   //  }
 
   const auto& greedy_stats{greedy(context)};
-  const auto& exhaustive_stats{exhaustive_neighborhood_search(context, greedy_stats)};
+  const auto& vnd_stats{variable_neighborhood_descent(context, greedy_stats, kVndIterationThreshold)};
 
   const std::string& filename{input_file.stem().string()};
 
-  // Estamos salvando as estatísticas em dois arquivos diferentes para facilitar a comparação entre as soluções.
-  // Mas no final, só precisamos da solução golusa que será combinada com as melhorias da busca exaustiva.
   apa::stats_serializer::serialize(greedy_stats, filename + std::string("_greedy.txt"));
-  apa::stats_serializer::serialize(exhaustive_stats, filename + std::string("_greedy2.txt"));
+  apa::stats_serializer::serialize(vnd_stats, filename + std::string("_vnd.txt"));
 
   return EXIT_SUCCESS;
 }
@@ -236,31 +239,43 @@ client greedy_next_client(const apa::context& context, const pending_clients& pe
   return client;
 }
 
-apa::stats exhaustive_neighborhood_search(const apa::context& context, const apa::stats& initial_solution) {
-  apa::stats best_solution{initial_solution};
+apa::stats variable_neighborhood_descent(const apa::context& context, const apa::stats& initial_solution,
+                                         std::size_t iteration_threshold) {
+  apa::stats best_solution{initial_solution};  // A solução inicial é a melhor solução.
+  std::size_t iteration{};                     // Número de iterações sem melhoria.
 
-  // Vizinhança 1: move clientes numa única rota.
-  best_solution = move_client_within_route(context, best_solution);
-  const int nb_1_cost_gain{best_solution.total_cost - initial_solution.total_cost};
+  // Estruturas de vizinhança.
+  std::vector<apa::stats (*)(const apa::context&, const apa::stats&)> neighborhoods = {
+      move_client_within_route, move_client_between_routes, move_client_with_outsourcing};
 
-  if (s_debug) {
-    std::cout << "nbs_sr: best solution gain: " << nb_1_cost_gain << std::endl;
+  // Enquanto o número de iterações sem melhoria for menor que o limiar...
+  while (iteration < iteration_threshold) {
+    for (const auto& neighborhood : neighborhoods) {
+      // Aplica a estrutura de vizinhança na melhor solução encontrada até o momento.
+      apa::stats current_solution{neighborhood(context, best_solution)};
+
+      // Se a solução atual for melhor que a melhor solução encontrada até o momento, atualiza a melhor solução.
+      if (current_solution.total_cost < best_solution.total_cost) {
+        best_solution = current_solution;
+
+        // Reseta o número de iterações sem melhoria.
+        iteration = 0;
+      } else {
+        iteration++;
+      }
+
+      if (s_debug) {
+        std::cout << "vnd: no improvement in neighborhood "
+                  << (neighborhood == move_client_within_route     ? "sr"
+                      : neighborhood == move_client_between_routes ? "mr"
+                                                                   : "os")
+                  << ".\tIteration: " << iteration << std::endl;
+      }
+    }
   }
 
-  // Vizinhança 2: move clientes em múltiplas rotas.
-  best_solution = move_client_between_routes(context, best_solution);
-  const int nb_2_cost_gain{best_solution.total_cost - initial_solution.total_cost - nb_1_cost_gain};
-
   if (s_debug) {
-    std::cout << "nbs_mr: best solution gain: " << nb_2_cost_gain << std::endl;
-  }
-
-  // Vizinhança 3: move clientes lidando com terceirização.
-  best_solution = move_client_with_outsourcing(context, best_solution);
-  const int nb_3_cost_gain{best_solution.total_cost - initial_solution.total_cost - nb_1_cost_gain - nb_2_cost_gain};
-
-  if (s_debug) {
-    std::cout << "nbs_ou: best solution gain: " << nb_3_cost_gain << std::endl;
+    std::cout << "vnd: total cost difference:\t" << best_solution.total_cost - initial_solution.total_cost << std::endl;
   }
 
   return best_solution;
@@ -292,8 +307,7 @@ apa::stats move_client_within_route(const apa::context& context, const apa::stat
         // Se a solução atual for melhor que a melhor solução encontrada até o momento, atualiza a melhor solução.
         if (current_solution.total_cost < best_solution.total_cost) {
           if (s_debug) {
-            std::cout << "nbs_sr: new solution found by swapping clients "
-                      << current_solution.routes[vehicle][rhs_client] << " and "
+            std::cout << "vnd-sr: swapping clients " << current_solution.routes[vehicle][rhs_client] << " and "
                       << current_solution.routes[vehicle][lhs_client] << " in route with vehicle " << vehicle
                       << ".\tCost gain: " << current_solution.total_cost - best_solution.total_cost << std::endl;
           }
@@ -335,7 +349,7 @@ apa::stats move_client_between_routes(const apa::context& context, const apa::st
           // Se a solução atual for melhor que a melhor solução encontrada até o momento, atualiza a melhor solução.
           if (current_solution.total_cost < best_solution.total_cost) {
             if (s_debug) {
-              std::cout << "nbs_mr: new solution found by swapping clients " << rhs_client << " and " << lhs_client
+              std::cout << "vnd-mr: swapping clients " << rhs_client << " and " << lhs_client
                         << " between routes with vehicles " << lhs_vehicle << " and " << rhs_vehicle
                         << ".\tCost gain: " << current_solution.total_cost - best_solution.total_cost << std::endl;
             }
@@ -380,9 +394,8 @@ apa::stats move_client_with_outsourcing(const apa::context& context, const apa::
       // Se a solução atual for melhor que a melhor solução encontrada até o momento, atualiza a melhor solução.
       if (current_solution.total_cost < best_solution.total_cost) {
         if (s_debug) {
-          std::cout << "nbs_os: new solution found by outsourcing client " << client << " from route with vehicle "
-                    << vehicle << ".\tCost gain: " << current_solution.total_cost - best_solution.total_cost
-                    << std::endl;
+          std::cout << "vnd-os: outsource client " << client << " from route with vehicle " << vehicle
+                    << ".\tCost gain: " << current_solution.total_cost - best_solution.total_cost << std::endl;
         }
 
         best_solution = current_solution;
