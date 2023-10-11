@@ -9,15 +9,12 @@ todos do mesmo modelo e com capacidade ```Q```. Todos os veículos devem iniciar
 
 - [x] Implementação de ao menos uma heurística de construção (algoritmo guloso) para a geração de uma solução viável.
 
-- [ ] Implementação de estruturas de vizinhança.
+- [x] Implementação de estruturas de vizinhança.
   - [x] Com movimentos envolvendo uma única rota.
   - [x] Com movimentos envolvendo múltiplas rotas.
-  - [ ] Capaz de lidar com entregas terceirizadas
-        
-  > ℹ️ Todas as estruturas devem realizar uma busca exaustiva na vizinhaça, o que significa que devem verificar todas as possíveis combinações.
-  #
+  - [x] Capaz de lidar com entregas terceirizadas
     
-- [ ] Implementação do algoritmo de busca local __VND__ (_Variable Neighborhood Descent_).
+- [x] Implementação do algoritmo de busca local __VND__ (_Variable Neighborhood Descent_).
 - [ ] Implementação de uma meta-heurística (_opcional_). Sugestões: __GRASP__ ou __ILS__.
 
 ## Entrada
