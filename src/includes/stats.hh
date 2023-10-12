@@ -15,8 +15,6 @@ struct stats {
   std::vector<int> outsourced_clients;
   std::vector<std::vector<int>> routes;
 
-  [[nodiscard]] int count_used_vehicles() const;
-
   friend std::ostream& operator<<(std::ostream& os, const stats& stats);
 };
 
@@ -30,32 +28,24 @@ class stats_serializer {
   int total_vehicle_cost{};
   int total_outsourcing_cost{};
 
-  // Calcula o custo de roteamento.
   for (const auto& route : stats.routes) {
     if (route.empty()) {
       continue;
     }
 
-    int prev_client{0};  // O depósito (0) é o ponto de partida.
-    for (int client : route) {
-      total_routing_cost += context.distance(prev_client, client);
-      prev_client = client;
+    int origin_client{0};
+    for (const int target_client : route) {
+      total_routing_cost += context.distance(origin_client, target_client);  // Adiciona o custo de roteamento.
+      origin_client = target_client;
     }
 
-    // Adiciona o custo de retorno ao depósito
-    total_routing_cost += context.distance(prev_client, 0);
+    total_vehicle_cost += context.vehicle_cost;                // Adiciona o custo de utilização do veículo.
+    total_routing_cost += context.distance(origin_client, 0);  // Adiciona o custo de retorno ao depósito.
   }
 
   // Calcula o custo de terceirização.
-  for (const auto& client : stats.outsourced_clients) {
+  for (const int client : stats.outsourced_clients) {
     total_outsourcing_cost += context.outsourcing_cost(client);
-  }
-
-  // Calcula o custo de utilização dos veículos.
-  for (const auto& route : stats.routes) {
-    if (!route.empty()) {
-      total_vehicle_cost += context.vehicle_cost;
-    }
   }
 
   return {

@@ -36,17 +36,6 @@ std::ostream& operator<<(std::ostream& os, const stats& stats) {
   return os;
 }
 
-int stats::count_used_vehicles() const {
-  int used_vehicle{0};
-  for (const auto& route : routes) {
-    if (!route.empty()) {
-      used_vehicle++;
-    }
-  }
-
-  return used_vehicle;
-}
-
 void stats_serializer::serialize(const stats& stats, const std::string& filename) {
   std::ofstream file{filename, std::ios::out | std::ios::trunc};
   if (!file.is_open()) {
