@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "includes/context.hh"
+#include "includes/scope_timer.hh"
 #include "includes/stats.hh"
 
 using client = int;
@@ -109,6 +110,8 @@ int main(int argc, char** argv) {
   }
 
   const std::filesystem::path& input_file{argv[1]};
+  const std::string& filename{input_file.stem().string()};
+
   const auto& context = apa::context_parser::parse(input_file);
 
   // Acho que o parser está OK. Qualquer coisa, descomenta aqui e verifica se a instância foi lida corretamente.
@@ -116,10 +119,18 @@ int main(int argc, char** argv) {
   //    std ::cout << context << std::endl;
   //  }
 
-  const auto& greedy_stats{greedy(context)};
-  const auto& vnd_stats{variable_neighborhood_descent(context, greedy_stats)};
+  apa::stats greedy_stats{};
+  apa::stats vnd_stats{};
 
-  const std::string& filename{input_file.stem().string()};
+  {
+    apa::scope_timer timer{"greedy"};
+    greedy_stats = greedy(context);
+  }
+
+  {
+    apa::scope_timer timer{"vnd"};
+    vnd_stats = variable_neighborhood_descent(context, greedy_stats);
+  }
 
   apa::stats_serializer::serialize(greedy_stats, filename + std::string("_greedy.txt"));
   apa::stats_serializer::serialize(vnd_stats, filename + std::string("_vnd.txt"));
