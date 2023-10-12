@@ -23,7 +23,7 @@ class stats_serializer {
   static void serialize(const stats& stats, const std::string& filename);
 };
 
-[[maybe_unused]] static const apa::stats update_stats(const apa::context& context, const apa::stats& stats) {
+[[maybe_unused]] static const apa::stats rebuild_stats(const apa::context& context, const apa::stats& stats) {
   int total_routing_cost{};
   int total_vehicle_cost{};
   int total_outsourcing_cost{};

@@ -76,6 +76,14 @@ apa::stats move_client_inter_routes(const apa::context& context, const apa::stat
 apa::stats move_client_with_outsourcing(const apa::context& context, const apa::stats& initial_solution);
 
 /**
+ * @brief Calcula a carga de um veículo.
+ * @param context Instância do problema.
+ * @param route Rota do veículo.
+ * @return Carga total do veículo dado sua rota.
+ */
+int vehicle_load(const apa::context& context, const std::vector<client>& route);
+
+/**
  * @brief Busca o último cliente atendido na rota de um veículo.
  * @param routes Lista de rotas dos veículos.
  * @param vehicle Veículo a ser considerado.
@@ -236,85 +244,77 @@ client greedy_next_client(const apa::context& context, const pending_clients& pe
 }
 
 apa::stats variable_neighborhood_descent(const apa::context& context, const apa::stats& initial_solution) {
-  apa::stats best_solution{initial_solution};  // A solução inicial é a melhor solução.
+  apa::stats best_solution{initial_solution};
 
   // Estruturas de vizinhança.
   std::vector<apa::stats (*)(const apa::context&, const apa::stats&)> neighborhoods = {
       move_client_intra_route, move_client_inter_routes, move_client_with_outsourcing};
 
-  // Índice da estrutura de vizinhança.
   std::size_t neighborhood_index{};
-
   while (neighborhood_index < neighborhoods.size()) {
-    // Aplica a estrutura de vizinhança na melhor solução encontrada até o momento.
     const auto& neighborhood{neighborhoods[neighborhood_index]};
+
+    // Aplica a estrutura de vizinhança na melhor solução encontrada até o momento.
     apa::stats current_solution{neighborhood(context, best_solution)};
 
-    // Se a solução atual for melhor que a melhor solução encontrada até o momento, atualiza a melhor solução.
+    // Avalia a solução atual.
     if (current_solution.total_cost < best_solution.total_cost) {
       best_solution = current_solution;
 
-      // Reseta o índice da estrutura de vizinhança.
+      // Reseta o índice da estrutura de vizinhança para que todas as estruturas de vizinhança sejam aplicadas na nova
+      // melhor solução.
       neighborhood_index = 0;
     } else {
       if (s_debug) {
         std::cout << "vnd: no improvement in "
-                  << (neighborhood_index == 0   ? "intra routes"
-                      : neighborhood_index == 1 ? "inter routes"
+                  << (neighborhood_index == 0   ? "intra-routes"
+                      : neighborhood_index == 1 ? "inter-routes"
                                                 : "outsourcing")
                   << " neighborhood" << std::endl;
       }
 
       // Incrementa o índice da estrutura de vizinhança. Se o índice igualar ao tamanho do vetor de estruturas de
       // vizinhança, não há mais melhorias possíveis (todas as estruturas de vizinhança foram aplicadas). Neste caso,
-      // o algoritmo termina.
+      // o algoritmo termina com a melhor solução encontrada.
       neighborhood_index++;
     }
   }
 
   if (s_debug) {
-    std::cout << "vnd: total cost difference:\t" << best_solution.total_cost - initial_solution.total_cost << std::endl;
+    std::cout << "vnd: total cost gain: " << best_solution.total_cost - initial_solution.total_cost << std::endl;
   }
 
   return best_solution;
 }
 
 apa::stats move_client_intra_route(const apa::context& context, const apa::stats& initial_solution) {
-  apa::stats best_solution{initial_solution};
+  apa::stats best_solution = initial_solution;
 
-  // Para cada veículo, isto é, para cada rota...
+  // Itera sobre as rotas.
   for (vehicle vehicle = 0; vehicle < context.vehicles; vehicle++) {
-    const auto& route{best_solution.routes[vehicle]};
+    apa::stats current_solution = best_solution;
+    std::vector<client>& route{current_solution.routes[vehicle]};
 
-    // Se a rota estiver vazia, não há clientes para serem movidos.
-    if (route.empty()) {
-      continue;
-    }
+    // Itera sobre os pares de clientes possíveis na rota.
+    for (std::size_t lhs_client_index = 0; lhs_client_index < route.size(); lhs_client_index++) {
+      for (std::size_t rhs_client_index = lhs_client_index + 1; rhs_client_index < route.size(); rhs_client_index++) {
+        // Troca os clientes nos índices lhs_client_index e rhs_client_index.
+        std::swap(route[lhs_client_index], route[rhs_client_index]);
 
-    // Examina todos os pares de clientes possíveis
-    for (std::size_t lhs_client = 0; lhs_client < route.size(); lhs_client++) {
-      for (std::size_t rhs_client = lhs_client + 1; rhs_client < route.size(); rhs_client++) {
-        apa::stats current_solution{best_solution};
-
-        // Troca os clientes nas posições lhs_client e rhs_client.
-        std::swap(current_solution.routes[vehicle][lhs_client], current_solution.routes[vehicle][rhs_client]);
-
-        // Atualiza os custos da nova solução.
-        current_solution = apa::update_stats(context, current_solution);
-
-        // Se a solução atual for melhor que a melhor solução encontrada até o momento, atualiza a melhor solução.
+        // Atualiza os custos e avalia a solução atual.
+        current_solution = apa::rebuild_stats(context, current_solution);
         if (current_solution.total_cost < best_solution.total_cost) {
           if (s_debug) {
-            std::cout << "vnd: swapping clients " << current_solution.routes[vehicle][rhs_client] << " and "
-                      << current_solution.routes[vehicle][lhs_client] << " ("
-                      << current_solution.total_cost - best_solution.total_cost << ")" << std::endl;
+            std::cout << "vnd: swapping clients intra-route " << route[rhs_client_index] << " and "
+                      << route[lhs_client_index] << " (" << current_solution.total_cost - best_solution.total_cost
+                      << ")" << std::endl;
           }
 
           best_solution = current_solution;
         } else {
           // A troca não melhorou a solução, então desfaz a troca para que a próxima iteração possa examinar outro par
           // de clientes possíveis.
-          std::swap(current_solution.routes[vehicle][lhs_client], current_solution.routes[vehicle][rhs_client]);
+          std::swap(route[lhs_client_index], route[rhs_client_index]);
         }
       }
     }
@@ -324,36 +324,38 @@ apa::stats move_client_intra_route(const apa::context& context, const apa::stats
 }
 
 apa::stats move_client_inter_routes(const apa::context& context, const apa::stats& initial_solution) {
-  apa::stats best_solution{initial_solution};
+  apa::stats best_solution = initial_solution;
 
-  // Para cada par de veículos, isto é, para cada par de rotas...
+  // Itera sobre todos os pares de veículos possíveis.
   for (vehicle lhs_vehicle = 0; lhs_vehicle < context.vehicles; lhs_vehicle++) {
     for (vehicle rhs_vehicle = lhs_vehicle + 1; rhs_vehicle < context.vehicles; rhs_vehicle++) {
-      apa::stats current_solution{best_solution};
+      apa::stats current_solution = best_solution;
 
+      // Obtém as rotas dos veículos.
       std::vector<client>& lhs_route = current_solution.routes[lhs_vehicle];
       std::vector<client>& rhs_route = current_solution.routes[rhs_vehicle];
 
-      // Examina todos os pares de clientes possíveis entre as rotas lhs_route e rhs_route.
+      // Obtém a carga corrente dos veículos (soma das demandas dos clientes na rota).
+      const int lhs_vehicle_load{vehicle_load(context, lhs_route)};
+      const int rhs_vehicle_load{vehicle_load(context, rhs_route)};
+
+      // Itera sobre todos os pares de clientes possíveis entre as rotas.
       for (client& lhs_client : lhs_route) {
         for (client& rhs_client : rhs_route) {
-          // Se a troca ocasionar uma violação de capacidade do veículo (lhs_vehicle ou rhs_vehicle), não é possível
-          // realizar a troca de clientes.
-          if (context.demand(lhs_client) > context.vehicle_capacity - context.demand(rhs_client) ||
-              context.demand(rhs_client) > context.vehicle_capacity - context.demand(lhs_client)) {
+          // Verifica se a troca respeitará a restrição de capacidade dos veículos.
+          if (lhs_vehicle_load - context.demand(lhs_client) + context.demand(rhs_client) > context.vehicle_capacity ||
+              rhs_vehicle_load - context.demand(rhs_client) + context.demand(lhs_client) > context.vehicle_capacity) {
             continue;
           }
 
-          // Troca os clientes lhs_client e rhs_client. Observe que estamos trocando os clientes por referência.
+          // Troca os clientes lhs_client e rhs_client.
           std::swap(lhs_client, rhs_client);
 
-          // Atualiza os custos da nova solução.
-          current_solution = apa::update_stats(context, current_solution);
-
-          // Se a solução atual for melhor que a melhor solução encontrada até o momento, atualiza a melhor solução.
+          // Atualiza os custos e avalia a solução atual.
+          current_solution = apa::rebuild_stats(context, current_solution);
           if (current_solution.total_cost < best_solution.total_cost) {
             if (s_debug) {
-              std::cout << "vnd: swapping clients " << rhs_client << " and " << lhs_client << " ("
+              std::cout << "vnd: swapping clients inter-route " << rhs_client << " and " << lhs_client << " ("
                         << current_solution.total_cost - best_solution.total_cost << ")" << std::endl;
             }
 
@@ -372,34 +374,34 @@ apa::stats move_client_inter_routes(const apa::context& context, const apa::stat
 }
 
 apa::stats move_client_with_outsourcing(const apa::context& context, const apa::stats& initial_solution) {
-  apa::stats best_solution{initial_solution};
+  apa::stats best_solution = initial_solution;
 
-  // Para cada veículo, isto é, para cada rota...
+  std::vector<std::pair<client, int>> candidates{};
+
+  // Itera sobre as rotas.
   for (vehicle vehicle = 0; vehicle < context.vehicles; vehicle++) {
-    // Para cada cliente na rota...
-    for (const client client : best_solution.routes[vehicle]) {
-      apa::stats current_solution{best_solution};
+    apa::stats current_solution = best_solution;
+    std::vector<client>& route{current_solution.routes[vehicle]};
+    std::vector<client>& outsourced_clients{current_solution.outsourced_clients};
 
+    // Itera sobre os clientes da rota.
+    for (const client client : route) {
       // Verifica se a solução atual atingiu o limite de terceirizações.
-      if (static_cast<int>(current_solution.outsourced_clients.size()) == context.outsourcing_threshold()) {
+      if (static_cast<int>(outsourced_clients.size()) == context.outsourcing_threshold()) {
         return current_solution;
       }
 
       // Encontra o índice do cliente na rota atual.
-      const auto& client_index =
-          std::find(current_solution.routes[vehicle].begin(), current_solution.routes[vehicle].end(), client) -
-          current_solution.routes[vehicle].begin();
+      const auto& client_index = std::find(route.begin(), route.end(), client) - route.begin();
 
       // Remove o cliente da rota atual.
-      current_solution.routes[vehicle].erase(current_solution.routes[vehicle].begin() + client_index);
+      route.erase(route.begin() + client_index);
 
       // Insere o cliente removido na lista de clientes terceirizados.
-      current_solution.outsourced_clients.insert(current_solution.outsourced_clients.begin(), client);
+      outsourced_clients.insert(outsourced_clients.begin(), client);
 
-      // Atualiza os custos da nova solução.
-      current_solution = apa::update_stats(context, current_solution);
-
-      // Se a solução atual for melhor que a melhor solução encontrada até o momento, atualiza a melhor solução.
+      // Atualiza os custos e avalia a solução atual.
+      current_solution = apa::rebuild_stats(context, current_solution);
       if (current_solution.total_cost < best_solution.total_cost) {
         if (s_debug) {
           std::cout << "vnd: outsource client " << client << " ("
@@ -410,13 +412,23 @@ apa::stats move_client_with_outsourcing(const apa::context& context, const apa::
       } else {
         // A terceirização não melhorou a solução, então desfaz a terceirização para que a próxima iteração possa
         // examinar outro cliente.
-        current_solution.outsourced_clients.erase(current_solution.outsourced_clients.begin());
-        current_solution.routes[vehicle].insert(current_solution.routes[vehicle].begin() + client_index, client);
+        outsourced_clients.erase(outsourced_clients.begin());
+        route.insert(route.begin() + client_index, client);
       }
     }
   }
 
   return best_solution;
+}
+
+int vehicle_load(const apa::context& context, const std::vector<client>& route) {
+  int load{};
+
+  for (const client client : route) {
+    load += context.demand(client);
+  }
+
+  return load;
 }
 
 vehicle find_vehicle_with_most_capacity(const vehicle_capacities& vehicle_capacities) {
