@@ -26,6 +26,10 @@ std::ostream& operator<<(std::ostream& os, const stats& stats) {
   os << "\n\n" << used_routes << "\n";
 
   for (const auto& route : stats.routes) {
+    if (route.empty()) {
+      continue;
+    }
+
     for (const auto& client : route) {
       os << client << " ";
     }
