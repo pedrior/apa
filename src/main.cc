@@ -245,50 +245,155 @@ apa::stats variable_neighborhood_descent(const apa::context& context, const apa:
 }
 
 apa::stats move_client_intra_route(const apa::context& context, const apa::stats& solution) {
-  apa::stats best_solution = solution;
-  apa::stats curr_solution = best_solution;
+  apa::stats current_solution = solution;
 
-  client* best_lhs_client{};
-  client* best_rhs_client{};
-
-  int curr_total_cost{curr_solution.total_cost};
-  int best_total_cost{curr_total_cost};
+  // Melhor candidato à troca de clientes.
+  std::tuple<client*, client*, cost> best_candidate{nullptr, nullptr, std::numeric_limits<cost>::max()};
 
   for (vehicle vehicle = 0; vehicle < context.vehicles; vehicle++) {
-    auto& route{curr_solution.routes[vehicle]};
+    auto& route{current_solution.routes[vehicle]};
+
+    // Não há clientes suficientes para troca.
+    if (route.size() < 2) {
+      continue;
+    }
 
     for (std::size_t lhs_client = 0; lhs_client < route.size(); lhs_client++) {
       for (std::size_t rhs_client = lhs_client + 1; rhs_client < route.size(); rhs_client++) {
-        std::swap(route[lhs_client], route[rhs_client]);
-        apa::stats temp_solution = apa::rebuild_stats(context, curr_solution);
+        int temp_total_cost = current_solution.total_cost;
+        bool adjacent_clients{lhs_client + 1 == rhs_client};
 
-        if (temp_solution.total_cost < best_total_cost) {
-          best_total_cost = temp_solution.total_cost;
-          best_lhs_client = &route[lhs_client];
-          best_rhs_client = &route[rhs_client];
+        // Caso 1: clientes adjacentes.
+        if (adjacent_clients) {
+          // Caso 1.1: A rota possui apenas um par clientes.
+          if (route.size() == 2) {
+            temp_total_cost -= context.distance(kDepot, route[lhs_client]);
+            temp_total_cost -= context.distance(route[lhs_client], route[rhs_client]);
+            temp_total_cost -= context.distance(route[rhs_client], kDepot);
+
+            temp_total_cost += context.distance(kDepot, route[rhs_client]);
+            temp_total_cost += context.distance(route[rhs_client], route[lhs_client]);
+            temp_total_cost += context.distance(route[lhs_client], kDepot);
+          } else {
+            // Caso 1.2 (l, r, ...): O par de cliente está no início da rota.
+            if (lhs_client == 0 && rhs_client == lhs_client + 1) {
+              temp_total_cost -= context.distance(kDepot, route[lhs_client]);
+              temp_total_cost -= context.distance(route[lhs_client], route[rhs_client]);
+              temp_total_cost -= context.distance(route[rhs_client], route[rhs_client + 1]);
+
+              temp_total_cost += context.distance(kDepot, route[rhs_client]);
+              temp_total_cost += context.distance(route[rhs_client], route[lhs_client]);
+              temp_total_cost += context.distance(route[lhs_client], route[rhs_client + 1]);
+            }
+            // Caso 1.3 (..., l, r): O par de cliente está no final da rota.
+            else if (lhs_client == route.size() - 2 && rhs_client == lhs_client + 1) {
+              temp_total_cost -= context.distance(route[lhs_client - 1], route[lhs_client]);
+              temp_total_cost -= context.distance(route[lhs_client], route[rhs_client]);
+              temp_total_cost -= context.distance(route[rhs_client], kDepot);
+
+              temp_total_cost += context.distance(route[lhs_client - 1], route[rhs_client]);
+              temp_total_cost += context.distance(route[rhs_client], route[lhs_client]);
+              temp_total_cost += context.distance(route[lhs_client], kDepot);
+            }
+            // Caso 1.4 (..., l, r, ...): O par de cliente está no meio da rota.
+            else if (lhs_client > 0 && rhs_client < route.size() - 1) {
+              temp_total_cost -= context.distance(route[lhs_client - 1], route[lhs_client]);
+              temp_total_cost -= context.distance(route[lhs_client], route[rhs_client]);
+              temp_total_cost -= context.distance(route[rhs_client], route[rhs_client + 1]);
+
+              temp_total_cost += context.distance(route[lhs_client - 1], route[rhs_client]);
+              temp_total_cost += context.distance(route[rhs_client], route[lhs_client]);
+              temp_total_cost += context.distance(route[lhs_client], route[rhs_client + 1]);
+            } else {
+              throw std::runtime_error("[intra-route] Caso 1.5: não tratado.");
+            }
+          }
+        }
+        // Caso 2: Clientes não adjacentes.
+        else {
+          // Caso 2.1 (l, ..., r, ...): O par não adjacentes está no início da rota.
+          if (lhs_client == 0 && rhs_client > lhs_client + 1 && rhs_client < route.size() - 1) {
+            temp_total_cost -= context.distance(kDepot, route[lhs_client]);
+            temp_total_cost -= context.distance(route[lhs_client], route[lhs_client + 1]);
+            temp_total_cost -= context.distance(route[rhs_client - 1], route[rhs_client]);
+            temp_total_cost -= context.distance(route[rhs_client], route[rhs_client + 1]);
+
+            temp_total_cost += context.distance(kDepot, route[rhs_client]);
+            temp_total_cost += context.distance(route[rhs_client], route[lhs_client + 1]);
+            temp_total_cost += context.distance(route[rhs_client - 1], route[lhs_client]);
+            temp_total_cost += context.distance(route[lhs_client], route[rhs_client + 1]);
+          }
+          // Caso 2.2 (..., l, ..., r, ...): O par não adjacentes está no meio da rota.
+          else if (lhs_client > 0 && rhs_client > lhs_client + 1 && rhs_client < route.size() - 1) {
+            temp_total_cost -= context.distance(route[lhs_client - 1], route[lhs_client]);
+            temp_total_cost -= context.distance(route[lhs_client], route[lhs_client + 1]);
+            temp_total_cost -= context.distance(route[rhs_client - 1], route[rhs_client]);
+            temp_total_cost -= context.distance(route[rhs_client], route[rhs_client + 1]);
+
+            temp_total_cost += context.distance(route[lhs_client - 1], route[rhs_client]);
+            temp_total_cost += context.distance(route[rhs_client], route[lhs_client + 1]);
+            temp_total_cost += context.distance(route[rhs_client - 1], route[lhs_client]);
+            temp_total_cost += context.distance(route[lhs_client], route[rhs_client + 1]);
+          }
+          // Caso 2.3 (..., l, ..., r): O par não adjacentes está no final da rota.
+          else if (lhs_client > 0 && rhs_client > lhs_client + 1 && rhs_client == route.size() - 1) {
+            temp_total_cost -= context.distance(route[lhs_client - 1], route[lhs_client]);
+            temp_total_cost -= context.distance(route[lhs_client], route[lhs_client + 1]);
+            temp_total_cost -= context.distance(route[rhs_client - 1], route[rhs_client]);
+            temp_total_cost -= context.distance(route[rhs_client], kDepot);
+
+            temp_total_cost += context.distance(route[lhs_client - 1], route[rhs_client]);
+            temp_total_cost += context.distance(route[rhs_client], route[lhs_client + 1]);
+            temp_total_cost += context.distance(route[rhs_client - 1], route[lhs_client]);
+            temp_total_cost += context.distance(route[lhs_client], kDepot);
+          }
+          // Caso 2.4 (l, ..., r): O par não adjacentes é o primeiro e o último da rota.
+          else if (lhs_client == 0 && rhs_client == route.size() - 1) {
+            temp_total_cost -= context.distance(kDepot, route[lhs_client]);
+            temp_total_cost -= context.distance(route[lhs_client], route[lhs_client + 1]);
+            temp_total_cost -= context.distance(route[rhs_client - 1], route[rhs_client]);
+            temp_total_cost -= context.distance(route[rhs_client], kDepot);
+
+            temp_total_cost += context.distance(kDepot, route[rhs_client]);
+            temp_total_cost += context.distance(route[rhs_client], route[lhs_client + 1]);
+            temp_total_cost += context.distance(route[rhs_client - 1], route[lhs_client]);
+            temp_total_cost += context.distance(route[lhs_client], kDepot);
+          } else {
+            throw std::runtime_error("[intra-route] Caso 2.5: não tratado.");
+          }
         }
 
-        std::swap(route[lhs_client], route[rhs_client]);
+        // É melhor que o candidato atual?
+        if (temp_total_cost < std::get<2>(best_candidate)) {
+          best_candidate = std::make_tuple(&route[lhs_client], &route[rhs_client], temp_total_cost);
+        }
       }
     }
   }
 
-  // Não houve melhoria na rota atual.
-  if (best_total_cost == curr_total_cost) {
-    return best_solution;
+  auto& [best_lhs_client, best_rhs_client, best_cost] = best_candidate;
+
+  // Verifica se a solução atual é melhor que o candidato.
+  if (best_cost >= current_solution.total_cost) {
+    return current_solution;
   }
 
   if (s_debug) {
-    std::cout << "vnd: swapping clients intra-route " << *best_rhs_client << " and " << *best_lhs_client << " ("
-              << best_total_cost - curr_total_cost << ")" << std::endl;
+    std::cout << "vnd: swapping clients intra-route " << *best_lhs_client << " and " << *best_rhs_client << " ("
+              << best_cost - current_solution.total_cost << ")" << std::endl;
   }
 
   // Troca os clientes e atualiza a solução atual.
   std::swap(*best_lhs_client, *best_rhs_client);
-  curr_solution = apa::rebuild_stats(context, curr_solution);
-  best_solution = curr_solution;
+  current_solution = apa::rebuild_stats(context, current_solution);
 
-  return best_solution;
+  if (current_solution.total_cost != best_cost) {
+    std::cout << "best_cost: " << best_cost << " current_solution.total_cost: " << current_solution.total_cost
+              << std::endl;
+    throw std::runtime_error("[intra-route] O homem nasce bom, errar a simulação de custo total o corrompe.");
+  }
+
+  return current_solution;
 }
 
 apa::stats move_client_inter_route(const apa::context& context, const apa::stats& solution) {
