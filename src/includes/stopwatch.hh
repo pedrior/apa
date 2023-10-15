@@ -7,16 +7,16 @@
 
 namespace apa {
 
-class scope_timer {
+class stopwatch {
  public:
-  explicit scope_timer(std::string label)
+  explicit stopwatch(std::string label)
       : _label{std::move(label)}, _start{std::chrono::high_resolution_clock::now()} {}
 
-  ~scope_timer() {
+  ~stopwatch() {
     const auto end{std::chrono::high_resolution_clock::now()};
-    const auto duration{std::chrono::duration_cast<std::chrono::microseconds>(end - _start)};
+    const auto duration{std::chrono::duration_cast<std::chrono::milliseconds>(end - _start)};
 
-    std::cout << _label << ":\t" << duration.count() << "us" << std::endl;
+    std::cout << _label << ":\t" << duration.count() << "ms" << std::endl;
   }
 
  private:

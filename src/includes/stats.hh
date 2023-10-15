@@ -12,7 +12,7 @@ struct stats {
   int routing_cost;
   int vehicles_cost;
   int outsourcing_cost;
-  std::vector<int> outsourced_clients;
+  std::vector<int> outsourced;
   std::vector<std::vector<int>> routes;
 
   friend std::ostream& operator<<(std::ostream& os, const stats& stats);
@@ -44,7 +44,7 @@ class stats_serializer {
   }
 
   // Calcula o custo de terceirização.
-  for (const int client : stats.outsourced_clients) {
+  for (const int client : stats.outsourced) {
     total_outsourcing_cost += context.outsourcing_cost(client);
   }
 
@@ -53,7 +53,7 @@ class stats_serializer {
       total_routing_cost,                                                // routing_cost
       total_vehicle_cost,                                                // vehicles_cost
       total_outsourcing_cost,                                            // outsourcing_cost
-      stats.outsourced_clients,                                          // outsourced_clients
+      stats.outsourced,                                          // outsourced
       stats.routes                                                       // routes
   };
 }

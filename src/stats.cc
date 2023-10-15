@@ -12,7 +12,7 @@ std::ostream& operator<<(std::ostream& os, const stats& stats) {
 
   os << "\n";
 
-  for (const auto& client : stats.outsourced_clients) {
+  for (const auto& client : stats.outsourced) {
     os << client << " ";
   }
 
