@@ -21,12 +21,11 @@ using capacity = int;
 static bool s_debug{};
 
 constexpr int kDepot{0};  // Depósito é o "cliente" 0.
-constexpr int kNotFound{-1};
 
 apa::stats greedy(const apa::context& context);
 
 client greedy_next_client(const apa::context& context, const std::unordered_set<client>& pending, client origin,
-                          capacity capacity);
+                          capacity available_capacity);
 
 apa::stats variable_neighborhood_descent(const apa::context& context, const apa::stats& solution);
 
@@ -37,10 +36,6 @@ apa::stats move_client_inter_route(const apa::context& context, const apa::stats
 apa::stats move_client_with_outsourcing(const apa::context& context, const apa::stats& solution);
 
 int sum_vehicle_load(const apa::context& context, const std::vector<client>& route);
-
-client find_last_client(const std::vector<std::vector<client>>& routes, vehicle vehicle);
-
-vehicle find_best_vehicle(const std::vector<capacity>& capacities);
 
 int main(int argc, char** argv) {
   if (argc < 2) {
@@ -77,117 +72,106 @@ int main(int argc, char** argv) {
 apa::stats greedy(const apa::context& context) {
   int routing_cost{};
   int outsourcing_cost{};
+  int vehicle_cost{};
   std::vector<std::vector<client>> routes{};
   std::unordered_set<client> pending{};
   std::vector<client> outsourced{};
   std::vector<capacity> capacities{};
 
-  // Inicializa o conjunto de clientes pendentes.
   for (client client = context.clients; client >= 1; client--) {
     pending.insert(client);
   }
 
-  // Inicializa as rotas dos veículos.
   routes = std::vector<std::vector<vehicle>>(context.vehicles, std::vector<client>{});
-
-  // Inicializa as capacidades dos veículos.
   capacities = std::vector<vehicle>(context.vehicles, context.vehicle_capacity);
 
+  std::size_t current_vehicle{0};
+
+  // Aloca os clientes nas rotas.
   while (!pending.empty()) {
-    const vehicle vehicle{find_best_vehicle(capacities)};
-    const capacity vehicle_capacity{capacities[vehicle]};
-
-    // Considera o último cliente atendido na rota do veículo atual como origem para o próximo cliente a ser atendido.
-    // Se a rota estiver vazia, o cliente é o depósito (kDepot).
-    const client origin_client{find_last_client(routes, vehicle)};
-
-    // Encontra o próximo cliente a ser atendido.
-    const client target_client{greedy_next_client(context, pending, origin_client, vehicle_capacity)};
-
-    // Cliente encontrado, atende-o.
-    if (target_client != kNotFound) {
-      if (s_debug) {
-        std::cout << "greedy: vehicle " << vehicle << " will serve client " << target_client << " with cost "
-                  << context.distance(origin_client, target_client) << std::endl;
-      }
-
-      routes[vehicle].push_back(target_client);  // Adiciona o cliente à rota do veículo atual.
-
-      routing_cost += context.distance(origin_client, target_client);  // Atualiza o custo de roteamento.
-      capacities[vehicle] -= context.demand(target_client);            // Atualiza a capacidade do veículo.
-
-      pending.erase(target_client);  // Remove o cliente do conjunto de clientes pendentes.
+    // Verifica se atingiu o número máximo de veículos.
+    if (current_vehicle == routes.size()) {
+      break;
     }
-    // Cliente não pode ser atendido pelo veículo de maior capacidade, então ele deve ser terceirizado.
-    else {
-      // Neste ponto, nenhum cliente pendente pode ser atendido (mesmo pelo veículo de maior capacidade), então todos os
-      // clientes pendentes devem ser terceirizados. Tanto faz qual cliente será terceirizado, então escolhe-se o
-      // primeiro cliente pendente.
-      const client outsource_client{*pending.begin()};
 
-      outsourcing_cost += context.outsourcing_cost(outsource_client);  // Atualiza o custo de terceirização.
+    int available_capacity{capacities[current_vehicle]};
 
-      outsourced.push_back(outsource_client);  // Adiciona o cliente à lista de clientes terceirizados.
-      pending.erase(outsource_client);         // Remove o cliente do conjunto de clientes pendentes.
+    // Obtém o cliente de origem. Se a rota estiver vazia, então o cliente de origem é o depósito.
+    client origin_client{routes[current_vehicle].empty() ? kDepot : routes[current_vehicle].back()};
+
+    // Obtém o cliente mais próximo do cliente de origem. Considera a capacidade do veículo atual.
+    client target_client{greedy_next_client(context, pending, origin_client, available_capacity)};
+
+    if (target_client) {
+      int demand{context.demand(target_client)};
+      int distance{context.distance(origin_client, target_client)};
+
+      if (s_debug) {
+        std::cout << "greedy: vehicle " << current_vehicle << " will serve client " << target_client << " with cost "
+                  << distance << std::endl;
+
+        routes[current_vehicle].push_back(target_client);
+
+        capacities[current_vehicle] -= demand;
+        routing_cost += distance;
+
+        pending.erase(target_client);
+      }
+    } else {
+      current_vehicle++;
+      continue;
     }
   }
 
-  // Neste ponto, todos os clientes foram atendidos ou terceirizados. Agora, é necessário retornar ao depósito.
-  for (vehicle vehicle = 0; vehicle < context.vehicles; vehicle++) {
-    // O veículo atual não foi utilizado (não possui rota), então não é necessário retornar ao depósito.
-    if (routes[vehicle].empty()) {
+  // Terceizia os clientes que não foram alocados em nenhuma rota.
+  for (const auto& client : pending) {
+    outsourced.push_back(client);
+    outsourcing_cost += context.outsourcing_cost(client);
+  }
+
+  // Retorna ao depósito e atualiza os custos.
+  for (std::size_t vehicle = 0; vehicle < routes.size(); vehicle++) {
+    const auto& route{routes[vehicle]};
+    if (route.empty()) {
       continue;
     }
 
     if (s_debug) {
-      std::cout << "greedy: vehicle " << vehicle << " will return to depot with cost "
+      std::cout << "greedy: current_vehicle " << vehicle << " will return to depot with cost "
                 << context.distance(routes[vehicle].back(), kDepot) << std::endl;
     }
 
-    // Atualiza o custo de roteamento com o retorno ao depósito.
-    routing_cost += context.distance(routes[vehicle].back(), kDepot);
+    vehicle_cost += context.vehicle_cost;
+    routing_cost += context.distance(route.back(), kDepot);
   }
 
-  int total_vehicle_cost{};
-
-  // Calcula o custo de utilização dos veículos.
-  for (const capacity capacity : capacities) {
-    if (capacity < context.vehicle_capacity) {
-      total_vehicle_cost += context.vehicle_cost;
-    }
-  }
-
-  const int total_cost{routing_cost + outsourcing_cost + total_vehicle_cost};
-
+  const int total_cost{routing_cost + outsourcing_cost + vehicle_cost};
   return {
-      total_cost,          // total_cost
-      routing_cost,        // routing_cost
-      total_vehicle_cost,  // vehicles_cost
-      outsourcing_cost,    // outsourcing_cost
-      outsourced,          // outsourced
-      routes               // routes
+      total_cost,        // total_cost
+      routing_cost,      // routing_cost
+      vehicle_cost,      // vehicles_cost
+      outsourcing_cost,  // outsourcing_cost
+      outsourced,        // outsourced
+      routes             // routes
   };
 }
 
 client greedy_next_client(const apa::context& context, const std::unordered_set<client>& pending, client origin,
-                          capacity capacity) {
-  client client{-1};                              // Inicializa o cliente com -1 (não há cliente possível).
-  int min_cost{std::numeric_limits<int>::max()};  // Inicializa o custo com o maior valor possível.
+                          capacity available_capacity) {
+  client next_client{0};
+  int best_cost{std::numeric_limits<int>::max()};
 
-  for (const auto target_client : pending) {
-    const int target_client_demand{context.demand(target_client)};
-    const int target_client_distance{context.distance(origin, target_client)};
+  for (const client client : pending) {
+    const int demand{context.demand(client)};
+    const int distance{context.distance(origin, client)};
 
-    // Considera o custo da distância.
-    int target_client_cost{target_client_distance};
-
-    if (target_client_cost < min_cost && target_client_demand <= capacity) {
-      client = target_client;
-      min_cost = target_client_cost;
+    if (distance < best_cost && demand <= available_capacity) {
+      next_client = client;
+      best_cost = distance;
     }
   }
 
-  return client;
+  return next_client;
 }
 
 apa::stats variable_neighborhood_descent(const apa::context& context, const apa::stats& solution) {
@@ -644,6 +628,9 @@ apa::stats move_client_with_outsourcing(const apa::context& context, const apa::
 
   for (vehicle vehicle = 0; vehicle < context.vehicles; vehicle++) {
     std::vector<client>& route{best_solution.routes[vehicle]};
+    if (route.empty()) {
+      continue;
+    }
 
     for (std::size_t client_index = 0; client_index < route.size(); client_index++) {
       int new_total_cost{best_solution.total_cost};
@@ -728,20 +715,4 @@ int sum_vehicle_load(const apa::context& context, const std::vector<client>& rou
   }
 
   return load;
-}
-
-vehicle find_best_vehicle(const std::vector<capacity>& capacities) {
-  std::size_t vehicle_index{};
-  for (std::size_t index = 0; index < capacities.size(); index++) {
-    if (capacities[index] > capacities[vehicle_index]) {
-      vehicle_index = index;
-    }
-  }
-
-  return static_cast<int>(vehicle_index);
-}
-
-client find_last_client(const std::vector<std::vector<client>>& routes, vehicle vehicle) {
-  return routes[vehicle].empty() ? kDepot  // A rota está vazia, então o cliente é o depósito (kDepot).
-                                 : routes[vehicle].back();
 }
