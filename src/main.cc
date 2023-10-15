@@ -375,7 +375,7 @@ apa::stats move_client_intra_route(const apa::context& context, const apa::stats
 
   if (best_solution.total_cost != best_cost) {
     std::cout << "best_cost: " << best_cost << " best_solution.total_cost: " << best_solution.total_cost << std::endl;
-    throw std::runtime_error("[intra-route] O homem nasce bom, errar a simulação de custo total o corrompe.");
+    throw std::runtime_error("[intra-route] best_cost != best_solution.total_cost");
   }
 
   return best_solution;
@@ -625,7 +625,7 @@ apa::stats move_client_inter_route(const apa::context& context, const apa::stats
 
   if (best_solution.total_cost != best_cost) {
     std::cout << "best_cost: " << best_cost << " best_solution.total_cost: " << best_solution.total_cost << std::endl;
-    throw std::runtime_error("[inter-route] O homem nasce bom, errar a simulação de custo total o corrompe.");
+    throw std::runtime_error("[inter-route] best_cost != best_solution.total_cost");
   }
 
   return best_solution;
@@ -714,7 +714,7 @@ apa::stats move_client_with_outsourcing(const apa::context& context, const apa::
   best_solution = apa::rebuild_stats(context, best_solution);
 
   if (best_solution.total_cost != best_cost) {
-    throw std::runtime_error("O homem nasce bom, errar a simulação de custo total o corrompe.");
+    throw std::runtime_error("[outsourcing] best_cost != best_solution.total_cost");
   }
 
   return best_solution;
