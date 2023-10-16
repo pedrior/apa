@@ -16,7 +16,7 @@ class stopwatch {
     const auto end{std::chrono::high_resolution_clock::now()};
     const auto duration{std::chrono::duration_cast<std::chrono::milliseconds>(end - _start)};
 
-    std::cout << _label << ":\t" << duration.count() << "ms" << std::endl;
+    std::cout << _label << ": " << duration.count() << "ms" << std::endl;
   }
 
  private:
