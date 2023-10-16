@@ -109,14 +109,15 @@ apa::stats greedy(const apa::context& context) {
       if (s_debug) {
         std::cout << "greedy: vehicle " << current_vehicle << " will serve client " << target_client << " with cost "
                   << distance << std::endl;
-
-        routes[current_vehicle].push_back(target_client);
-
-        capacities[current_vehicle] -= demand;
-        routing_cost += distance;
-
-        pending.erase(target_client);
       }
+
+      routes[current_vehicle].push_back(target_client);
+
+      capacities[current_vehicle] -= demand;
+      routing_cost += distance;
+
+      pending.erase(target_client);
+
     } else {
       current_vehicle++;
       continue;
