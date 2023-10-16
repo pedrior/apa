@@ -16,7 +16,6 @@
 
 using cost = int;
 using client = int;
-using vehicle = int;
 using capacity = int;
 
 static bool s_debug{};
@@ -90,8 +89,8 @@ apa::stats greedy(const apa::context& context) {
     pending.insert(client);
   }
 
-  routes = std::vector<std::vector<vehicle>>(context.vehicles, std::vector<client>{});
-  capacities = std::vector<vehicle>(context.vehicles, context.vehicle_capacity);
+  routes = std::vector<std::vector<client>>(context.vehicles, std::vector<client>{});
+  capacities = std::vector<capacity>(context.vehicles, context.vehicle_capacity);
 
   std::size_t current_vehicle{0};
 
@@ -229,7 +228,7 @@ apa::stats move_client_intra_route(const apa::context& context, const apa::stats
   // Melhor candidato à troca de clientes.
   std::tuple<client*, client*, cost> best_move{nullptr, nullptr, std::numeric_limits<cost>::max()};
 
-  for (vehicle vehicle = 0; vehicle < context.vehicles; vehicle++) {
+  for (std::size_t vehicle{}; vehicle < best_solution.routes.size(); vehicle++) {
     auto& route{best_solution.routes[vehicle]};
 
     // Não há clientes suficientes para troca.
@@ -237,8 +236,8 @@ apa::stats move_client_intra_route(const apa::context& context, const apa::stats
       continue;
     }
 
-    for (std::size_t lhs_client = 0; lhs_client < route.size(); lhs_client++) {
-      for (std::size_t rhs_client = lhs_client + 1; rhs_client < route.size(); rhs_client++) {
+    for (std::size_t lhs_client{}; lhs_client < route.size(); lhs_client++) {
+      for (std::size_t rhs_client{lhs_client + 1}; rhs_client < route.size(); rhs_client++) {
         int new_total_cost{best_solution.total_cost};
         bool adjacent_clients{lhs_client + 1 == rhs_client};
 
@@ -381,24 +380,18 @@ apa::stats move_client_inter_route(const apa::context& context, const apa::stats
   std::tuple<client*, client*, cost> best_move{nullptr, nullptr, std::numeric_limits<cost>::max()};
 
   // Itera sobre todos os pares de veículos possíveis.
-  for (vehicle lhs_vehicle = 0; lhs_vehicle < context.vehicles; lhs_vehicle++) {
+  for (std::size_t lhs_vehicle{}; lhs_vehicle < best_solution.routes.size(); lhs_vehicle++) {
     std::vector<client>& lhs_route = best_solution.routes[lhs_vehicle];
-    if (lhs_route.empty()) {
-      continue;
-    }
 
-    for (vehicle rhs_vehicle = lhs_vehicle + 1; rhs_vehicle < context.vehicles; rhs_vehicle++) {
+    for (std::size_t rhs_vehicle{lhs_vehicle + 1}; rhs_vehicle < best_solution.routes.size(); rhs_vehicle++) {
       std::vector<client>& rhs_route = best_solution.routes[rhs_vehicle];
-      if (rhs_route.empty()) {
-        continue;
-      }
 
       // Obtém a carga corrente dos veículos (soma das demandas dos clientes).
       const int lhs_vehicle_load{sum_vehicle_load(context, lhs_route)};
       const int rhs_vehicle_load{sum_vehicle_load(context, rhs_route)};
 
-      for (std::size_t lhs_client = 0; lhs_client < lhs_route.size(); lhs_client++) {
-        for (std::size_t rhs_client = lhs_client + 1; rhs_client < rhs_route.size(); rhs_client++) {
+      for (std::size_t lhs_client{}; lhs_client < lhs_route.size(); lhs_client++) {
+        for (std::size_t rhs_client{lhs_client + 1}; rhs_client < rhs_route.size(); rhs_client++) {
           int new_lhs_vehicle_load{lhs_vehicle_load - context.demand(lhs_route[lhs_client]) +
                                    context.demand(rhs_route[rhs_client])};
           int new_rhs_vehicle_load{rhs_vehicle_load - context.demand(rhs_route[rhs_client]) +
@@ -633,21 +626,18 @@ apa::stats move_client_with_outsourcing(const apa::context& context, const apa::
   }
 
   // Melhor candidato à terceirização.
-  std::tuple<client, vehicle, cost> best_move{0, 0, std::numeric_limits<cost>::max()};
+  std::tuple<client, std::size_t, cost> best_move{0, 0, std::numeric_limits<cost>::max()};
 
-  for (vehicle vehicle = 0; vehicle < context.vehicles; vehicle++) {
+  for (std::size_t vehicle{}; vehicle < best_solution.routes.size(); vehicle++) {
     std::vector<client>& route{best_solution.routes[vehicle]};
-    if (route.empty()) {
-      continue;
-    }
 
-    for (std::size_t client_index = 0; client_index < route.size(); client_index++) {
+    for (std::size_t client{}; client < route.size(); client++) {
       int new_total_cost{best_solution.total_cost};
 
       // Caso 1: A rota possui um único cliente.
       if (route.size() == 1) {
-        new_total_cost -= context.distance(kDepot, route[client_index]);
-        new_total_cost -= context.distance(route[client_index], kDepot);
+        new_total_cost -= context.distance(kDepot, route[client]);
+        new_total_cost -= context.distance(route[client], kDepot);
 
         // O veículo não possui mais clientes.
         new_total_cost -= context.vehicle_cost;
@@ -655,36 +645,38 @@ apa::stats move_client_with_outsourcing(const apa::context& context, const apa::
       // Caso geral: A rota possui mais de um cliente.
       else {
         // Caso geral 1: O cliente é o primeiro da rota.
-        if (client_index == 0) {
-          new_total_cost -= context.distance(kDepot, route[client_index]);
-          new_total_cost -= context.distance(route[client_index], route[client_index + 1]);
+        if (client == 0) {
+          new_total_cost -= context.distance(kDepot, route[client]);
+          new_total_cost -= context.distance(route[client], route[client + 1]);
 
-          new_total_cost += context.distance(kDepot, route[client_index + 1]);
+          new_total_cost += context.distance(kDepot, route[client + 1]);
         }
 
         // Caso geral 2: O cliente é o último da rota.
-        if (client_index == route.size() - 1) {
-          new_total_cost -= context.distance(route[client_index - 1], route[client_index]);
-          new_total_cost -= context.distance(route[client_index], kDepot);
+        else if (client == route.size() - 1) {
+          new_total_cost -= context.distance(route[client - 1], route[client]);
+          new_total_cost -= context.distance(route[client], kDepot);
 
-          new_total_cost += context.distance(route[client_index - 1], kDepot);
+          new_total_cost += context.distance(route[client - 1], kDepot);
         }
 
         // Caso geral 3: O cliente está no meio da rota.
-        if (client_index > 0 && client_index < route.size() - 1) {
-          new_total_cost -= context.distance(route[client_index - 1], route[client_index]);
-          new_total_cost -= context.distance(route[client_index], route[client_index + 1]);
+        else if (client > 0 && client < route.size() - 1) {
+          new_total_cost -= context.distance(route[client - 1], route[client]);
+          new_total_cost -= context.distance(route[client], route[client + 1]);
 
-          new_total_cost += context.distance(route[client_index - 1], route[client_index + 1]);
+          new_total_cost += context.distance(route[client - 1], route[client + 1]);
+        } else {
+          throw std::runtime_error("[outsourcing] Caso geral 4: não tratado.");
         }
       }
 
       // Adiciona o custo de terceirização do cliente.
-      new_total_cost += context.outsourcing_cost(route[client_index]);
+      new_total_cost += context.outsourcing_cost(route[client]);
 
       // É melhor que o candidato atual?
       if (new_total_cost < std::get<2>(best_move)) {
-        best_move = std::make_tuple(route[client_index], vehicle, new_total_cost);
+        best_move = std::make_tuple(route[client], vehicle, new_total_cost);
       }
     }
   }
