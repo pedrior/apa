@@ -5,7 +5,7 @@
 namespace apa {
 
 std::ostream& operator<<(std::ostream& os, const stats& stats) {
-  os << stats.total_cost << "\n"
+  os << stats.total_cost() << "\n"
      << stats.routing_cost << "\n"
      << stats.vehicles_cost << "\n"
      << stats.outsourcing_cost << "\n";

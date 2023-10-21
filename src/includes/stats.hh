@@ -8,7 +8,6 @@
 namespace apa {
 
 struct stats {
-  int total_cost;
   int routing_cost;
   int vehicles_cost;
   int outsourcing_cost;
@@ -16,6 +15,8 @@ struct stats {
   std::vector<std::vector<int>> routes;
 
   friend std::ostream& operator<<(std::ostream& os, const stats& stats);
+
+  [[nodiscard]] int total_cost() const { return routing_cost + vehicles_cost + outsourcing_cost; }
 };
 
 class stats_serializer {
@@ -49,12 +50,11 @@ class stats_serializer {
   }
 
   return {
-      total_routing_cost + total_vehicle_cost + total_outsourcing_cost,  // total_cost
-      total_routing_cost,                                                // routing_cost
-      total_vehicle_cost,                                                // vehicles_cost
-      total_outsourcing_cost,                                            // outsourcing_cost
-      stats.outsourced,                                          // outsourced
-      stats.routes                                                       // routes
+      total_routing_cost,      // routing_cost
+      total_vehicle_cost,      // vehicles_cost
+      total_outsourcing_cost,  // outsourcing_cost
+      stats.outsourced,        // outsourced
+      stats.routes             // routes
   };
 }
 
