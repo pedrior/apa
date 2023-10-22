@@ -60,7 +60,7 @@ int main(int argc, char** argv) {
     greedy_stats = greedy(context);
   }
 
-  std::cout << "gap: " << std::fixed << std::setprecision(2) << apa::gap(filename, greedy_stats.total_cost())
+  std::cout << "gap: " << std::fixed << std::setprecision(2) << apa::gap(filename, greedy_stats.total_cost()) << "%"
             << std::endl;
 
   std::cout << std::endl;
@@ -70,7 +70,8 @@ int main(int argc, char** argv) {
     vnd_stats = variable_neighborhood_descent(context, greedy_stats);
   }
 
-  std::cout << "gap: " << std::fixed << std::setprecision(2) << apa::gap(filename, vnd_stats.total_cost()) << std::endl;
+  std::cout << "gap: " << std::fixed << std::setprecision(2) << apa::gap(filename, vnd_stats.total_cost()) << "%"
+            << std::endl;
 
   apa::stats_serializer::serialize(greedy_stats, filename + std::string("_greedy.txt"));
   apa::stats_serializer::serialize(vnd_stats, filename + std::string("_vnd.txt"));
