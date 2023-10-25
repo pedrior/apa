@@ -30,18 +30,13 @@ class stats_serializer {
   int total_outsourcing_cost{};
 
   for (const auto& route : stats.routes) {
-    if (route.empty()) {
-      continue;
+    for (std::size_t client_index{}; client_index < route.size() - 1; client_index++) {
+      total_routing_cost += context.distance(route[client_index], route[client_index + 1]);
     }
 
-    int origin_client{0};
-    for (const int target_client : route) {
-      total_routing_cost += context.distance(origin_client, target_client);  // Adiciona o custo de roteamento.
-      origin_client = target_client;
+    if (route.size() > 2) {
+      total_vehicle_cost += context.vehicle_cost;
     }
-
-    total_vehicle_cost += context.vehicle_cost;                // Adiciona o custo de utilização do veículo.
-    total_routing_cost += context.distance(origin_client, 0);  // Adiciona o custo de retorno ao depósito.
   }
 
   // Calcula o custo de terceirização.
