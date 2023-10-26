@@ -50,15 +50,11 @@ A estrutura do arquivo de saída contento a melhor solução encontrada é a seg
 
 
 
-## Compilando e executando (Windows + MinGW)
+## Compilando e executando
 
-1. No diretório raiz do projeto, crie o diretório de sáida com o comando ```mkdir bin```
+1. No diretório raiz do projeto, crie o diretório de sáida com o comando ```mkdir obj```
 2. Compile utlizando o MinGW com o comando ```mingw32-make ```
 3. Execute com um arquivo de entrada com o comando ```./bin/./apa <arquivo-de-entrada>```
-
-### Limpando o projeto
-
-Para remover os arquivos de compilação, execute o comando ```mingw32-make clean```
 
 ## Autores:
 
