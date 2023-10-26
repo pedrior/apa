@@ -18,7 +18,7 @@ std::ostream& operator<<(std::ostream& os, const stats& stats) {
 
   int used_routes{0};
   for (const auto& route : stats.routes) {
-    if (!route.empty()) {
+    if (route.size() > 2) {
       used_routes++;
     }
   }
