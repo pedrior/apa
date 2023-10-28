@@ -3,6 +3,7 @@
 #include <iostream>
 #include <limits>
 #include <memory>
+#include <random>
 #include <string>
 #include <tuple>
 #include <unordered_set>
@@ -31,6 +32,11 @@ client greedy_next_client(const apa::context& context, const std::unordered_set<
 
 apa::stats variable_neighborhood_descent(const apa::context& context, const apa::stats& solution);
 
+apa::stats iterated_local_search(const apa::context& context, const apa::stats& solution,
+                                 std::size_t max_iterations = 1000);
+
+void perturb(const apa::context& context, apa::stats& solution);
+
 void move_client_intra_route(const apa::context& context, apa::stats& solution);
 
 void move_client_inter_route(const apa::context& context, apa::stats& solution);
@@ -56,6 +62,7 @@ int main(int argc, char** argv) {
 
   apa::stats greedy_stats{};
   apa::stats vnd_stats{};
+  apa::stats ils_stats{};
 
   {
     apa::stopwatch greedy_sw{"greedy"};
@@ -75,8 +82,19 @@ int main(int argc, char** argv) {
   std::cout << "gap: " << std::fixed << std::setprecision(2) << apa::gap(filename, vnd_stats.total_cost()) << "%"
             << std::endl;
 
+  std::cout << std::endl;
+
+  {
+    apa::stopwatch ils_sw{"ils"};
+    ils_stats = iterated_local_search(context, vnd_stats);
+  }
+
+  std::cout << "gap: " << std::fixed << std::setprecision(2) << apa::gap(filename, ils_stats.total_cost()) << "%"
+            << std::endl;
+
   apa::stats_serializer::serialize(greedy_stats, filename + std::string("_greedy.txt"));
   apa::stats_serializer::serialize(vnd_stats, filename + std::string("_vnd.txt"));
+  apa::stats_serializer::serialize(ils_stats, filename + std::string("_ils.txt"));
 }
 
 apa::stats greedy(const apa::context& context) {
@@ -224,6 +242,67 @@ apa::stats variable_neighborhood_descent(const apa::context& context, const apa:
   }
 
   return best_solution;
+}
+
+apa::stats iterated_local_search(const apa::context& context, const apa::stats& solution, std::size_t max_iterations) {
+  apa::stats best_solution{solution};
+
+  std::size_t iteration{};
+  while (iteration < max_iterations) {
+    apa::stats new_solution{best_solution};
+
+    // Perturba a solução atual.
+    perturb(context, new_solution);
+
+    // Aplica o VND na solução perturbada.
+    new_solution = variable_neighborhood_descent(context, new_solution);
+
+    // Avalia a nova solução.
+    if (new_solution.total_cost() < best_solution.total_cost()) {
+      best_solution = new_solution;
+      iteration = 0;  // Reinicia o contador de iterações.
+    } else {
+      iteration++;
+    }
+  }
+
+  return best_solution;
+}
+
+std::size_t rnd(std::size_t min, std::size_t max) {
+  std::random_device rd;
+  std::mt19937 rng(rd());
+  std::uniform_int_distribution<std::size_t> dist(min, max);
+
+  return dist(rng);
+}
+
+void perturb(const apa::context& context, apa::stats& solution) {
+  apa::stats best_solution{solution};
+
+  std::vector<client>* lhs_route;
+  std::vector<client>* rhs_route;
+
+  // Obtem duas rotas aleatorias que possuem pelo menos 1 cliente cada
+  do {
+    lhs_route = &best_solution.routes[rnd(0, best_solution.routes.size() - 1)];
+    rhs_route = &best_solution.routes[rnd(0, best_solution.routes.size() - 1)];
+  } while (lhs_route->size() <= 2 || rhs_route->size() <= 2);
+
+  // Obtem dois clientes aleatorios distintos das rotas selecionadas
+  client* lhs_client;
+  client* rhs_client;
+
+  do {
+    lhs_client = &lhs_route->at(rnd(1, lhs_route->size() - 2));
+    rhs_client = &rhs_route->at(rnd(1, rhs_route->size() - 2));
+  } while (lhs_client == rhs_client);
+
+  // Troca os clientes
+  std::swap(*lhs_client, *rhs_client);
+
+  // Atualiza o custo de roteamento da solução atual.
+  solution = apa::rebuild_stats(context, best_solution);
 }
 
 void move_client_intra_route(const apa::context& context, apa::stats& solution) {
