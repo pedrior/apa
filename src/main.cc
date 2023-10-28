@@ -31,11 +31,11 @@ client greedy_next_client(const apa::context& context, const std::unordered_set<
 
 apa::stats variable_neighborhood_descent(const apa::context& context, const apa::stats& solution);
 
-apa::stats move_client_intra_route(const apa::context& context, const apa::stats& solution);
+void move_client_intra_route(const apa::context& context, apa::stats& solution);
 
-apa::stats move_client_inter_route(const apa::context& context, const apa::stats& solution);
+void move_client_inter_route(const apa::context& context, apa::stats& solution);
 
-apa::stats move_client_with_outsourcing(const apa::context& context, const apa::stats& solution);
+void move_client_with_outsourcing(const apa::context& context, apa::stats& solution);
 
 demand sum_vehicle_demand(const apa::context& context, const std::vector<client>& route);
 
@@ -188,7 +188,7 @@ apa::stats variable_neighborhood_descent(const apa::context& context, const apa:
   apa::stats best_solution{solution};
 
   // Estruturas de vizinhança.
-  std::vector<std::pair<std::string, apa::stats (*)(const apa::context&, const apa::stats&)>> neighborhoods = {
+  std::vector<std::pair<std::string, void (*)(const apa::context&, apa::stats&)>> neighborhoods = {
       {"intra-route", move_client_intra_route},
       {"inter-route", move_client_inter_route},
       {"outsourcing", move_client_with_outsourcing}};
@@ -201,8 +201,10 @@ apa::stats variable_neighborhood_descent(const apa::context& context, const apa:
   while (current_neighborhood < neighborhoods.size()) {
     const auto& [neighborhood, neighborhood_function] = neighborhoods[current_neighborhood];
 
-    // Aplica a estrutura de vizinhança na melhor solução encontrada até o momento.
-    apa::stats new_solution{neighborhood_function(context, best_solution)};
+    apa::stats new_solution{best_solution};
+
+    // Aplica a estrutura de vizinhança atual.
+    neighborhood_function(context, new_solution);
 
     // Avalia a solução atual.
     if (new_solution.total_cost() < best_solution.total_cost()) {
@@ -224,22 +226,20 @@ apa::stats variable_neighborhood_descent(const apa::context& context, const apa:
   return best_solution;
 }
 
-apa::stats move_client_intra_route(const apa::context& context, const apa::stats& solution) {
-  apa::stats best_solution{solution};
-
+void move_client_intra_route(const apa::context& context, apa::stats& solution) {
   // Melhor candidato à troca de clientes.
   std::tuple<client*, client*, cost> best_move{
-      nullptr,                    // best_lhs_client
-      nullptr,                    // best_rhs_client
-      best_solution.routing_cost  // best_routing_cost
+      nullptr,               // best_lhs_client
+      nullptr,               // best_rhs_client
+      solution.routing_cost  // best_routing_cost
   };
 
-  for (std::size_t vehicle{}; vehicle < best_solution.routes.size(); vehicle++) {
-    auto& route{best_solution.routes[vehicle]};
+  for (std::size_t vehicle{}; vehicle < solution.routes.size(); vehicle++) {
+    auto& route{solution.routes[vehicle]};
 
     for (std::size_t lhs_client{1}; lhs_client < route.size() - 1; lhs_client++) {
       for (std::size_t rhs_client{lhs_client + 1}; rhs_client < route.size() - 1; rhs_client++) {
-        int new_routing_cost{best_solution.routing_cost};
+        int new_routing_cost{solution.routing_cost};
 
         // .. lhs_client0 -> lhs_client1 -> lhs_client2 ..
 
@@ -273,13 +273,12 @@ apa::stats move_client_intra_route(const apa::context& context, const apa::stats
   auto& [best_lhs_client, best_rhs_client, best_routing_cost] = best_move;
 
   // Verifica se o custo de roteamento da solução atual é melhor que o candidato a melhor solução.
-  if (best_routing_cost >= best_solution.routing_cost) {
-    return best_solution;
+  if (best_routing_cost >= solution.routing_cost) {
+    return;
   }
 
   if (s_debug) {
-    int total_cost_gain{best_solution.total_cost() - best_solution.routing_cost + best_routing_cost -
-                        best_solution.total_cost()};
+    int total_cost_gain{solution.total_cost() - solution.routing_cost + best_routing_cost - solution.total_cost()};
 
     std::cout << "vnd: swapping clients intra-route " << *best_lhs_client << " and " << *best_rhs_client << " ("
               << total_cost_gain << ")" << std::endl;
@@ -289,27 +288,23 @@ apa::stats move_client_intra_route(const apa::context& context, const apa::stats
   std::swap(*best_lhs_client, *best_rhs_client);
 
   // Atualiza o custo de roteamento da solução atual.
-  best_solution.routing_cost = best_routing_cost;
-
-  return best_solution;
+  solution.routing_cost = best_routing_cost;
 }
 
-apa::stats move_client_inter_route(const apa::context& context, const apa::stats& solution) {
-  apa::stats best_solution{solution};
-
+void move_client_inter_route(const apa::context& context, apa::stats& solution) {
   // Melhor candidato à troca de clientes.
   std::tuple<client*, client*, cost> best_move{
-      nullptr,                    // best_lhs_client
-      nullptr,                    // best_rhs_client
-      best_solution.routing_cost  // best_routing_cost
+      nullptr,               // best_lhs_client
+      nullptr,               // best_rhs_client
+      solution.routing_cost  // best_routing_cost
   };
 
   // Itera sobre todos os pares de veículos possíveis.
-  for (std::size_t lhs_vehicle{}; lhs_vehicle < best_solution.routes.size(); lhs_vehicle++) {
-    std::vector<client>& lhs_route = best_solution.routes[lhs_vehicle];
+  for (std::size_t lhs_vehicle{}; lhs_vehicle < solution.routes.size(); lhs_vehicle++) {
+    std::vector<client>& lhs_route = solution.routes[lhs_vehicle];
 
-    for (std::size_t rhs_vehicle{lhs_vehicle + 1}; rhs_vehicle < best_solution.routes.size(); rhs_vehicle++) {
-      std::vector<client>& rhs_route = best_solution.routes[rhs_vehicle];
+    for (std::size_t rhs_vehicle{lhs_vehicle + 1}; rhs_vehicle < solution.routes.size(); rhs_vehicle++) {
+      std::vector<client>& rhs_route = solution.routes[rhs_vehicle];
 
       // Obtém a carga total dos veículos.
       const demand total_lhs_vehicle_demand{sum_vehicle_demand(context, lhs_route)};
@@ -330,7 +325,7 @@ apa::stats move_client_inter_route(const apa::context& context, const apa::stats
             continue;
           }
 
-          cost new_routing_cost{best_solution.routing_cost};
+          cost new_routing_cost{solution.routing_cost};
 
           // .. lhs_client0 -> lhs_client1 -> lhs_client2 ..
           // .. rhs_client0 -> rhs_client1 -> rhs_client2 ..
@@ -362,13 +357,12 @@ apa::stats move_client_inter_route(const apa::context& context, const apa::stats
   auto& [best_lhs_client, best_rhs_client, best_routing_cost] = best_move;
 
   // Verifica se o custo de roteamento da solução atual é melhor que o candidato a melhor solução.
-  if (best_routing_cost >= best_solution.routing_cost) {
-    return best_solution;
+  if (best_routing_cost >= solution.routing_cost) {
+    return;
   }
 
   if (s_debug) {
-    int total_cost_gain{best_solution.total_cost() - best_solution.routing_cost + best_routing_cost -
-                        best_solution.total_cost()};
+    int total_cost_gain{solution.total_cost() - solution.routing_cost + best_routing_cost - solution.total_cost()};
 
     std::cout << "vnd: swapping clients inter-route " << *best_lhs_client << " and " << *best_rhs_client << " ("
               << total_cost_gain << ")" << std::endl;
@@ -378,35 +372,30 @@ apa::stats move_client_inter_route(const apa::context& context, const apa::stats
   std::swap(*best_lhs_client, *best_rhs_client);
 
   // Atualiza o custo de roteamento da solução atual.
-  best_solution.routing_cost = best_routing_cost;
-
-  return best_solution;
+  solution.routing_cost = best_routing_cost;
 }
 
-apa::stats move_client_with_outsourcing(const apa::context& context, const apa::stats& solution) {
-  apa::stats best_solution{solution};
-
+void move_client_with_outsourcing(const apa::context& context, apa::stats& solution) {
   // Verifica se a solução atual já atingiu o limite de terceirização permitido (N - L).
-  if (best_solution.outsourced.size() == static_cast<std::size_t>(context.outsourcing_threshold())) {
-    return best_solution;
+  if (solution.outsourced.size() == static_cast<std::size_t>(context.outsourcing_threshold())) {
+    return;
   }
 
   // Melhor candidato à terceirização.
-  std::tuple<client, std::size_t, cost, cost, cost, cost> best_move{
-      0,                               // best_client
-      0,                               // best_vehicle
-      best_solution.routing_cost,      // best_routing_cost
-      best_solution.outsourcing_cost,  // best_outsourcing_cost
-      best_solution.vehicles_cost,     // best_vehicles_cost
-      best_solution.total_cost()};     // best_total_cost
+  std::tuple<client, std::size_t, cost, cost, cost, cost> best_move{0,                          // best_client
+                                                                    0,                          // best_vehicle
+                                                                    solution.routing_cost,      // best_routing_cost
+                                                                    solution.outsourcing_cost,  // best_outsourcing_cost
+                                                                    solution.vehicles_cost,     // best_vehicles_cost
+                                                                    solution.total_cost()};     // best_total_cost
 
-  for (std::size_t vehicle{}; vehicle < best_solution.routes.size(); vehicle++) {
-    std::vector<client>& route{best_solution.routes[vehicle]};
+  for (std::size_t vehicle{}; vehicle < solution.routes.size(); vehicle++) {
+    std::vector<client>& route{solution.routes[vehicle]};
 
     for (std::size_t client{1}; client < route.size() - 1; client++) {
-      cost new_routing_cost{best_solution.routing_cost};
-      cost new_outsourcing_cost{best_solution.outsourcing_cost};
-      cost new_vehicles_cost{best_solution.vehicles_cost};
+      cost new_routing_cost{solution.routing_cost};
+      cost new_outsourcing_cost{solution.outsourcing_cost};
+      cost new_vehicles_cost{solution.vehicles_cost};
 
       // .. client0 -> client1 -> client2 ..
 
@@ -438,29 +427,27 @@ apa::stats move_client_with_outsourcing(const apa::context& context, const apa::
                best_total_cost] = best_move;
 
   // Verifica se a solução atual é melhor que o candidato.
-  if (best_total_cost >= best_solution.total_cost()) {
-    return best_solution;
+  if (best_total_cost >= solution.total_cost()) {
+    return;
   }
 
   if (s_debug) {
-    std::cout << "vnd: outsourcing client " << best_client << " (" << best_total_cost - best_solution.total_cost()
-              << ")" << std::endl;
+    std::cout << "vnd: outsourcing client " << best_client << " (" << best_total_cost - solution.total_cost() << ")"
+              << std::endl;
   }
 
   // Remove o cliente da rota do veículo.
   auto best_client_it{
-      std::find(best_solution.routes[best_vehicle].begin(), best_solution.routes[best_vehicle].end(), best_client)};
-  best_solution.routes[best_vehicle].erase(best_client_it);
+      std::find(solution.routes[best_vehicle].begin(), solution.routes[best_vehicle].end(), best_client)};
+  solution.routes[best_vehicle].erase(best_client_it);
 
   // Adiciona o cliente à lista de clientes terceirizados
-  best_solution.outsourced.push_back(best_client);
+  solution.outsourced.push_back(best_client);
 
   // Atualiza os custos de roteamento, terceirização e utilização dos veículos da solução atual.
-  best_solution.routing_cost = best_routing_cost;
-  best_solution.outsourcing_cost = best_outsourcing_cost;
-  best_solution.vehicles_cost = best_vehicles_cost;
-
-  return best_solution;
+  solution.routing_cost = best_routing_cost;
+  solution.outsourcing_cost = best_outsourcing_cost;
+  solution.vehicles_cost = best_vehicles_cost;
 }
 
 demand sum_vehicle_demand(const apa::context& context, const std::vector<client>& route) {
