@@ -313,10 +313,12 @@ void iterated_local_search_perturbation(const apa::context& context, apa::stats&
     } while (lhs_route->size() <= 2 || rhs_route->size() <= 2);
 
     // Obtem dois clientes aleatorios distintos das rotas selecionadas
-    do {
-      lhs_client = &lhs_route->at(rnd<std::size_t>(1, lhs_route->size() - 2));
-      rhs_client = &rhs_route->at(rnd<std::size_t>(1, rhs_route->size() - 2));
-    } while (lhs_client == rhs_client);
+    lhs_client = &lhs_route->at(rnd<std::size_t>(1, lhs_route->size() - 2));
+    rhs_client = &rhs_route->at(rnd<std::size_t>(1, rhs_route->size() - 2));
+
+    if (lhs_client == rhs_client) {
+      continue;
+    }
 
     // Troca os clientes (intra/inter-route)
     std::swap(*lhs_client, *rhs_client);
