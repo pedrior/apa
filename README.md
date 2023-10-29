@@ -15,7 +15,8 @@ todos do mesmo modelo e com capacidade ```Q```. Todos os veículos devem iniciar
   - [x] Capaz de lidar com entregas terceirizadas
     
 - [x] Implementação do algoritmo de busca local __VND__ (_Variable Neighborhood Descent_).
-- [ ] Implementação de uma meta-heurística (_opcional_). Sugestões: __GRASP__ ou __ILS__.
+- [x] Implementação de uma meta-heurística (_opcional_). Sugestões: __GRASP__ ou __ILS__.
+> Implementado um modelo simples de __ILS__ apenas com _swaps_ aleatórios.
 
 ## Entrada
 
