@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <chrono>
 #include <filesystem>
 #include <iostream>
 #include <limits>
@@ -256,12 +257,19 @@ apa::stats variable_neighborhood_descent(const apa::context& context, const apa:
 apa::stats iterated_local_search(const apa::context& context, const apa::stats& solution, int iteration_threshold) {
   apa::stats best_solution{solution};
 
+  const double time_limit{1000 * 60 * 5};  // 5 minutos
+
   int iteration{};
 
   // Limite de perturbação da solução atual.
   int perturbation_threshold{1};
 
-  while (iteration < iteration_threshold) {
+  auto start = std::chrono::steady_clock::now();
+
+  double elapsed_time{};
+
+  // Executa o ILS até atingir o limite de iterações sem melhoria ou o limite de tempo.
+  while (iteration < iteration_threshold && elapsed_time < time_limit) {
     apa::stats new_solution{best_solution};
 
     // Perturba a solução atual.
@@ -287,6 +295,9 @@ apa::stats iterated_local_search(const apa::context& context, const apa::stats& 
                   << std::endl;
       }
     }
+
+    // Atualiza o tempo decorrido.
+    elapsed_time = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
   }
 
   return best_solution;
