@@ -25,6 +25,15 @@ static bool s_debug{};
 
 constexpr int kDepot{0};  // Depósito é o "cliente" 0.
 
+template <typename T>
+T rnd(T min, T max) {
+  std::random_device rd;
+  std::mt19937 rng(rd());
+  std::uniform_int_distribution<T> dist(min, max);
+
+  return dist(rng);
+}
+
 apa::stats greedy(const apa::context& context);
 
 client greedy_next_client(const apa::context& context, const std::unordered_set<client>& pending, client origin,
@@ -33,9 +42,9 @@ client greedy_next_client(const apa::context& context, const std::unordered_set<
 apa::stats variable_neighborhood_descent(const apa::context& context, const apa::stats& solution);
 
 apa::stats iterated_local_search(const apa::context& context, const apa::stats& solution,
-                                 std::size_t max_iterations = 1000);
+                                 int iteration_threshold = 1000);
 
-void perturb(const apa::context& context, apa::stats& solution);
+void iterated_local_search_perturbation(const apa::context& context, apa::stats& solution, int threshold);
 
 void move_client_intra_route(const apa::context& context, apa::stats& solution);
 
@@ -86,7 +95,7 @@ int main(int argc, char** argv) {
 
   {
     apa::stopwatch ils_sw{"ils"};
-    ils_stats = iterated_local_search(context, vnd_stats);
+    ils_stats = iterated_local_search(context, greedy_stats);
   }
 
   std::cout << "gap: " << std::fixed << std::setprecision(2) << apa::gap(filename, ils_stats.total_cost()) << "%"
@@ -244,15 +253,19 @@ apa::stats variable_neighborhood_descent(const apa::context& context, const apa:
   return best_solution;
 }
 
-apa::stats iterated_local_search(const apa::context& context, const apa::stats& solution, std::size_t max_iterations) {
+apa::stats iterated_local_search(const apa::context& context, const apa::stats& solution, int iteration_threshold) {
   apa::stats best_solution{solution};
 
-  std::size_t iteration{};
-  while (iteration < max_iterations) {
+  int iteration{};
+
+  // Limite de perturbação da solução atual.
+  int perturbation_threshold{1};
+
+  while (iteration < iteration_threshold) {
     apa::stats new_solution{best_solution};
 
     // Perturba a solução atual.
-    perturb(context, new_solution);
+    iterated_local_search_perturbation(context, new_solution, perturbation_threshold);
 
     // Aplica o VND na solução perturbada.
     new_solution = variable_neighborhood_descent(context, new_solution);
@@ -263,45 +276,55 @@ apa::stats iterated_local_search(const apa::context& context, const apa::stats& 
       iteration = 0;  // Reinicia o contador de iterações.
     } else {
       iteration++;
+
+      // Incrementa em 5 o limite de perturbação a cada 10% das iterações sem melhoria na solução.
+      if (iteration % (iteration_threshold / 10) == 0) {
+        perturbation_threshold += 5;
+      }
+
+      if (s_debug) {
+        std::cout << "ils: iteration " << iteration << " (perturb threshold: " << perturbation_threshold << ")"
+                  << std::endl;
+      }
     }
   }
 
   return best_solution;
 }
 
-std::size_t rnd(std::size_t min, std::size_t max) {
-  std::random_device rd;
-  std::mt19937 rng(rd());
-  std::uniform_int_distribution<std::size_t> dist(min, max);
+void iterated_local_search_perturbation(const apa::context& context, apa::stats& solution, int threshold) {
+  if (threshold == 0) {
+    return;
+  }
 
-  return dist(rng);
-}
-
-void perturb(const apa::context& context, apa::stats& solution) {
   apa::stats best_solution{solution};
 
   std::vector<client>* lhs_route;
   std::vector<client>* rhs_route;
 
-  // Obtem duas rotas aleatorias que possuem pelo menos 1 cliente cada
-  do {
-    lhs_route = &best_solution.routes[rnd(0, best_solution.routes.size() - 1)];
-    rhs_route = &best_solution.routes[rnd(0, best_solution.routes.size() - 1)];
-  } while (lhs_route->size() <= 2 || rhs_route->size() <= 2);
-
-  // Obtem dois clientes aleatorios distintos das rotas selecionadas
   client* lhs_client;
   client* rhs_client;
 
-  do {
-    lhs_client = &lhs_route->at(rnd(1, lhs_route->size() - 2));
-    rhs_client = &rhs_route->at(rnd(1, rhs_route->size() - 2));
-  } while (lhs_client == rhs_client);
+  for (int i{}; i < threshold; i++) {
+    // Obtem duas rotas aleatorias (podem até ser a mesma rota) que possuem pelo menos 1 cliente cada
+    do {
+      lhs_route = &best_solution.routes[rnd<std::size_t>(0, best_solution.routes.size() - 1)];
+      rhs_route = &best_solution.routes[rnd<std::size_t>(0, best_solution.routes.size() - 1)];
+    } while (lhs_route->size() <= 2 || rhs_route->size() <= 2);
 
-  // Troca os clientes
-  std::swap(*lhs_client, *rhs_client);
+    // Obtem dois clientes aleatorios distintos das rotas selecionadas
+    do {
+      lhs_client = &lhs_route->at(rnd<std::size_t>(1, lhs_route->size() - 2));
+      rhs_client = &rhs_route->at(rnd<std::size_t>(1, rhs_route->size() - 2));
+    } while (lhs_client == rhs_client);
+
+    // Troca os clientes (intra/inter-route)
+    std::swap(*lhs_client, *rhs_client);
+  }
 
   // Atualiza o custo de roteamento da solução atual.
+  // Isso aqui poderia ser removido fazendo a simulação do swap e calculando o custo de roteamento da solução atual.
+  // Mas acho que está OK por enquanto. Nem tudo são flores.
   solution = apa::rebuild_stats(context, best_solution);
 }
 
